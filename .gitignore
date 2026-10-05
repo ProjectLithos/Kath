@@ -1,0 +1,12 @@
+Bin/
+Artifacts/
+node_modules/
+.browser_modules/
+applications/electron/lib/
+applications/electron/src-gen/
+packages/kath/lib/
+*.log
+
+.toolchain/
+**/bin/
+**/obj/

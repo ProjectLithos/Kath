@@ -1,0 +1,36 @@
+{
+  "name": "@kath/extension",
+  "version": "0.0.49",
+  "private": true,
+  "license": "MIT",
+  "theiaExtensions": [
+    {
+      "frontend": "lib/browser/inu-frontend-module",
+      "backend": "lib/node/inu-backend-module"
+    }
+  ],
+  "dependencies": {
+    "@theia/core": "1.74.1",
+    "@theia/filesystem": "1.74.1",
+    "@theia/variable-resolver": "1.74.1",
+    "@theia/workspace": "1.74.1",
+    "inversify": "6.2.2",
+    "@lumino/widgets": "2.7.5",
+    "@lumino/messaging": "^2.0.4",
+    "@theia/output": "1.74.1",
+    "@theia/navigator": "1.74.1",
+    "@theia/monaco-editor-core": "1.108.201",
+    "@theia/editor": "1.74.1",
+    "@theia/monaco": "1.74.1",
+    "@theia/debug": "1.74.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0",
+    "@types/react": "^18.3.0"
+  },
+  "scripts": {
+    "build": "node ../../CJS/extension-files.cjs clean && tsc -p tsconfig.json && node ../../CJS/extension-files.cjs assets",
+    "clean": "node ../../CJS/extension-files.cjs clean"
+  }
+}

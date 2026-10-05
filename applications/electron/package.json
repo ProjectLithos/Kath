@@ -1,0 +1,72 @@
+{
+  "name": "@kath/electron",
+  "private": true,
+  "productName": "Kath",
+  "version": "0.0.49",
+  "main": "lib/backend/electron-main.js",
+  "theia": {
+    "target": "electron",
+    "frontend": {
+      "config": {
+        "applicationName": "Kath",
+        "reloadOnReconnect": true,
+        "electron": {
+          "appUserModelId": "Kath",
+          "splashScreenOptions": {
+            "content": "splash/splash.html",
+            "width": 960,
+            "height": 540,
+            "minDuration": 1200,
+            "maxDuration": 30000
+          },
+          "windowOptions": {
+            "icon": "resources/kath.ico",
+            "backgroundColor": "#ffffff"
+          }
+        },
+        "defaultTheme": {
+          "light": "light",
+          "dark": "dark"
+        },
+        "preferences": {
+          "editor.semanticHighlighting.enabled": true
+        }
+      }
+    },
+    "backend": {
+      "config": {
+        "frontendConnectionTimeout": -1,
+        "configureProxyFromPreferences": true
+      }
+    }
+  },
+  "dependencies": {
+    "@kath/extension": ">=0.0.1 <0.1.0",
+    "@vscode/windows-ca-certs": "0.3.4",
+    "@theia/core": "1.74.1",
+    "@theia/editor": "1.74.1",
+    "@theia/electron": "1.74.1",
+    "@theia/filesystem": "1.74.1",
+    "@theia/monaco": "1.74.1",
+    "@theia/navigator": "1.74.1",
+    "@theia/output": "1.74.1",
+    "@theia/preferences": "1.74.1",
+    "@theia/process": "1.74.1",
+    "@theia/search-in-workspace": "1.74.1",
+    "@theia/task": "1.74.1",
+    "@theia/terminal": "1.74.1",
+    "@theia/workspace": "1.74.1",
+    "@theia/debug": "1.74.1"
+  },
+  "devDependencies": {
+    "@theia/cli": "1.74.1",
+    "electron": "42.3.0"
+  },
+  "scripts": {
+    "build": "npm run rebuild && theia build --mode development",
+    "clean": "theia clean",
+    "rebuild": "theia rebuild:electron --cacheRoot ../..",
+    "start": "theia start",
+    "build:frontend": "theia build --mode development"
+  }
+}

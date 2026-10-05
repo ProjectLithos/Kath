@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "node": {
+    "version": "22.22.0",
+    "windowsX64Archive": "https://nodejs.org/dist/v22.22.0/node-v22.22.0-win-x64.zip",
+    "sha256Manifest": "https://nodejs.org/dist/v22.22.0/SHASUMS256.txt"
+  },
+  "python": {
+    "version": "3.13.15",
+    "distribution": "nuget-build-package",
+    "packageId": "python",
+    "source": "https://api.nuget.org/v3/index.json",
+    "nuget": {
+      "version": "6.14.3",
+      "windowsX86CommandLine": "https://dist.nuget.org/win-x86-commandline/v6.14.3/nuget.exe",
+      "sha256": "8103C5666F63528D9FEC59B53C5AE4B6FEED7C8AEC2930E344E870375F408A90"
+    }
+  },
+  "visualStudio": {
+    "majorVersion": "18",
+    "bootstrapper": "https://aka.ms/vs/18/release/vs_BuildTools.exe",
+    "requiredWorkload": "Microsoft.VisualStudio.Workload.VCTools",
+    "requiredComponent": "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+    "optionalSpectreComponent": "Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre"
+  }
+}

@@ -1,0 +1,923 @@
+.inu-widget {
+    position: relative;
+    overflow: hidden;
+}
+.inu-page {
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    padding: 36px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    background: var(--theia-editor-background);
+    color: var(--theia-editor-foreground);
+}
+.inu-card {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 32px;
+    border: 1px solid var(--theia-widget-border);
+    border-radius: 10px;
+    background: var(--theia-sideBar-background);
+}
+.inu-card-wide { max-width: 980px; }
+.inu-brand {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: .28em;
+    opacity: .72;
+}
+.inu-card h1 { margin: 8px 0 0; font-size: 34px; }
+.inu-version { margin-top: 2px; opacity: .65; }
+.inu-card fieldset {
+    margin: 24px 0 0;
+    padding: 18px 20px 22px;
+    border: 1px solid var(--theia-widget-border);
+    border-radius: 8px;
+}
+.inu-card legend { padding: 0 8px; font-weight: 700; font-size: 16px; }
+.inu-card label { display: block; margin: 14px 0 6px; font-weight: 600; }
+.inu-card input[type='text'], .inu-card input:not([type]), .inu-card select { width: 100%; box-sizing: border-box; }
+.inu-field:first-child label { margin-top: 4px; }
+.inu-check-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 4px 18px;
+}
+.inu-check {
+    display: flex !important;
+    align-items: center;
+    gap: 7px;
+    margin: 8px 0 !important;
+    font-weight: 400 !important;
+}
+.inu-check input { width: auto !important; }
+.inu-multi > label { margin-top: 16px; }
+.inu-actions { margin-top: 26px; }
+.inu-actions button { min-width: 250px; }
+.inu-generation-status {
+    margin-top: 10px;
+    min-height: 18px;
+    font-size: 12px;
+    opacity: .85;
+}
+.inu-note {
+    margin-top: 24px;
+    padding: 14px;
+    border-left: 3px solid var(--theia-focusBorder);
+    background: var(--theia-editor-background);
+    line-height: 1.5;
+}
+
+.inu-start-page { display:block; padding:22px 28px 32px; }
+.inu-start-card { width:min(920px, 100%); margin:0 auto; padding:18px 24px 28px; text-align:center; }
+
+.inu-start-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:22px auto 10px; max-width:760px; }
+.inu-kernel-preset { min-height:52px; font-weight:700; white-space:normal; }
+.inu-start-preset-help { max-width:760px; margin:0 auto 20px !important; opacity:.78; line-height:1.45; }
+@media (max-width: 720px) { .inu-start-actions { grid-template-columns:1fr; } }
+.inu-start-art { width:220px; height:220px; max-width:42vw; max-height:42vw; margin:0 auto 10px; background:url('./inu-logo.png') center/contain no-repeat; display:flex; align-items:flex-end; justify-content:center; overflow:hidden; }
+.inu-start-card h1 { margin:10px 0 4px; font-size:32px; }
+.inu-start-card > p { margin:8px 0; }
+.inu-start-actions { margin:16px 0 18px; }
+.inu-start-actions .theia-button { min-width:220px; font-size:16px; padding:9px 18px; }
+.inu-existing { max-width:720px; margin:18px auto 0; padding-top:16px; border-top:1px solid var(--theia-widget-border); text-align:left; }
+.inu-existing h2 { font-size:18px; }
+.inu-os-list { display:grid; gap:8px; margin:12px 0; }
+.inu-os-item { position:relative; border:1px solid var(--theia-widget-border); border-radius:6px; background:var(--theia-sideBar-background); overflow:hidden; }
+.inu-os-item-controls { position:absolute; top:8px; right:8px; z-index:2; display:flex; gap:6px; }
+.inu-os-item-controls .theia-button { min-height:26px; padding:2px 8px; font-size:11px; }
+.inu-os-delete { color:var(--theia-errorForeground); }
+.inu-os-entry { appearance:none; width:100%; padding:12px 250px 12px 14px; text-align:left; border:0; background:transparent; color:var(--theia-editor-foreground); cursor:pointer; }
+.inu-os-entry:hover { background:var(--theia-list-hoverBackground); }
+.inu-os-entry strong, .inu-os-entry > span { display:block; }
+.inu-os-entry > span { margin-top:4px; opacity:.68; font-size:12px; }
+.inu-os-title { display:flex; align-items:center; gap:8px; min-height:26px; }
+.inu-os-title strong { display:inline; }
+.inu-os-instance { display:inline-block; margin:0; opacity:.78; font-size:11px; border:1px solid var(--theia-widget-border); border-radius:10px; padding:1px 6px; }
+@media (max-width: 760px) {
+  .inu-os-item-controls { position:static; justify-content:flex-end; padding:8px 8px 0; flex-wrap:wrap; }
+  .inu-os-entry { padding:10px 14px 12px; }
+}
+.inu-readonly-path { padding:7px 9px; border:1px solid var(--theia-input-border); background:var(--theia-input-background); color:var(--theia-descriptionForeground); font-family:var(--theia-code-font-family); }
+
+.inu-existing-help { margin:4px 0 12px; opacity:.72; }
+@media (max-height: 760px) {
+    .inu-start-page { padding-top:14px; }
+    .inu-start-card { padding-top:10px; }
+    .inu-start-art { width:170px; height:170px; max-width:34vw; max-height:34vw; }
+    .inu-start-card h1 { font-size:28px; }
+}
+@media (max-width: 760px) {
+    .inu-page { padding:18px; }
+    .inu-start-page { padding:14px; }
+    .inu-start-card { padding:10px; }
+}
+
+.inu-run-toolbar-widget {
+    min-height: 34px;
+    background: var(--theia-titleBar-activeBackground, var(--theia-editor-background));
+    border-bottom: 1px solid var(--theia-widget-border);
+}
+.inu-run-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 34px;
+    box-sizing: border-box;
+    padding: 3px 8px;
+}
+.inu-run-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 92px;
+    height: 28px;
+    margin: 0;
+}
+.inu-run-mode {
+    width: 104px;
+    height: 28px;
+    box-sizing: border-box;
+}
+.inu-debug-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    height: 28px;
+    padding-left: 4px;
+}
+.inu-debug-button {
+    width: 28px;
+    height: 26px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--theia-foreground);
+    cursor: pointer;
+}
+.inu-debug-button:hover:not(:disabled) { background: var(--theia-toolbar-hoverBackground, var(--theia-list-hoverBackground)); }
+.inu-debug-button:disabled { opacity: .38; cursor: default; }
+
+.inu-breakpoint-button:not(:disabled) {
+    color: #e51400;
+    opacity: 1;
+}
+.inu-debug-separator { width: 1px; height: 18px; margin: 0 3px; background: var(--theia-widget-border); }
+.inu-debug-state { margin-left: 5px; padding: 2px 6px; border-radius: 4px; font-size: 11px; opacity: .72; }
+.inu-debug-state.running { opacity: 1; }
+.inu-debug-state.paused { opacity: 1; font-weight: 700; }
+
+/* Source breakpoints live in Monaco's far-left glyph margin and are available
+   before a debug session starts. Pending and verified breakpoints intentionally
+   use the same strong visual dot; verification is exposed by hover text. */
+.monaco-editor .margin-view-overlays .inu-breakpoint-glyph {
+    cursor: pointer !important;
+    background-image: radial-gradient(circle at center, #e51400 0 5px, transparent 5.5px) !important;
+    background-repeat: no-repeat !important;
+    background-position: center center !important;
+}
+.monaco-editor .margin-view-overlays .inu-breakpoint-glyph.pending {
+    opacity: .78;
+}
+.monaco-editor .margin-view-overlays .inu-breakpoint-glyph.verified {
+    opacity: 1;
+}
+.monaco-editor .margin-view-overlays .glyph-margin,
+.monaco-editor .margin-view-overlays .line-numbers {
+    cursor: pointer;
+}
+
+/* Current native statement. The arrow remains distinct from breakpoint dots and
+   the whole source line receives a subtle highlight while the kernel is paused. */
+.monaco-editor .inu-current-statement-line {
+    background: color-mix(in srgb, var(--theia-debugIcon-breakpointForeground, #e5b454) 14%, transparent) !important;
+}
+.monaco-editor .margin-view-overlays .inu-current-statement-glyph {
+    background: var(--theia-debugIcon-breakpointCurrentStackframeForeground, #e5b454) !important;
+    clip-path: polygon(12% 12%, 88% 50%, 12% 88%) !important;
+    width: 13px !important;
+    height: 13px !important;
+    margin: 3px auto 0 !important;
+}
+.monaco-editor .margin-view-overlays .inu-current-statement-lines {
+    border-left: 2px solid var(--theia-debugIcon-breakpointCurrentStackframeForeground, #e5b454) !important;
+}
+
+.inu-debug-inspector-widget {
+    overflow: auto;
+    background: var(--theia-sideBar-background);
+    color: var(--theia-foreground);
+}
+.inu-debug-inspector,
+.inu-debug-inspector-empty {
+    padding: 10px 12px 18px;
+    font-size: 12px;
+}
+.inu-debug-inspector-empty {
+    opacity: .72;
+}
+.inu-debug-inspector section {
+    margin-bottom: 18px;
+}
+.inu-debug-inspector h3 {
+    margin: 0 0 7px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    opacity: .78;
+}
+.inu-debug-table {
+    border-top: 1px solid var(--theia-widget-border);
+}
+.inu-debug-row {
+    display: grid;
+    grid-template-columns: minmax(58px, auto) minmax(120px, 1fr) auto;
+    gap: 8px;
+    align-items: baseline;
+    padding: 4px 2px;
+    border-bottom: 1px solid var(--theia-widget-border);
+    font-family: var(--theia-code-font-family);
+}
+.inu-debug-name {
+    font-weight: 700;
+}
+.inu-debug-value,
+.inu-debug-address {
+    overflow-wrap: anywhere;
+}
+.inu-debug-address {
+    opacity: .62;
+}
+.inu-debug-note {
+    margin: 0 0 8px;
+    line-height: 1.35;
+    opacity: .72;
+}
+.inu-debug-register-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 4px 8px;
+}
+.inu-debug-register {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 6px;
+    border: 1px solid var(--theia-widget-border);
+    border-radius: 3px;
+    font-family: var(--theia-code-font-family);
+}
+.inu-debug-register span {
+    font-weight: 700;
+}
+.inu-debug-row.clickable { cursor: pointer; }
+.inu-debug-row.clickable:hover { background: var(--theia-list-hoverBackground); }
+
+/* 0.1.52 conditional/hit-count breakpoint and Watch UI. */
+.inu-watch-entry {
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) auto auto;
+    gap: 5px;
+    align-items: center;
+    margin-bottom: 7px;
+}
+.inu-watch-entry input { min-width: 0; }
+.inu-watch-entry .theia-button { min-width: 48px; height: 26px; padding: 2px 8px; }
+.inu-debug-small-button {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--theia-foreground);
+    cursor: pointer;
+}
+.inu-debug-small-button:hover:not(:disabled) { background: var(--theia-list-hoverBackground); }
+.inu-debug-small-button:disabled { opacity: .38; cursor: default; }
+.inu-watch-row { grid-template-columns: minmax(90px, 35%) minmax(130px, 1fr) 24px; }
+.inu-debug-value.error { color: var(--theia-errorForeground, #f48771); }
+
+/* 0.1.52 branded title-bar logo. It occupies the far-left of the custom Electron
+   title/menu row without replacing Theia's standard ApplicationShell. */
+#inu-title-logo {
+    position: fixed;
+    top: 3px;
+    left: 5px;
+    width: 28px;
+    height: 28px;
+    z-index: 10000;
+    pointer-events: none;
+    background: url('./inu-logo.png') center/contain no-repeat;
+}
+body.inu-has-title-logo .p-MenuBar,
+body.inu-has-title-logo .lm-MenuBar {
+    padding-left: 36px !important;
+}
+
+/* 0.1.52 mixed source/disassembly and exception-breakpoint inspector. */
+.inu-exception-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+    gap: 5px 10px;
+    margin-bottom: 8px;
+}
+.inu-debug-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+.inu-debug-check input { margin: 0; }
+.inu-exception-hit {
+    margin-top: 7px;
+    padding: 6px 8px;
+    border-left: 3px solid var(--theia-debugIcon-breakpointForeground, #e5b454);
+    background: var(--theia-editor-background);
+}
+.inu-disassembly {
+    border-top: 1px solid var(--theia-widget-border);
+    font-family: var(--theia-code-font-family);
+}
+.inu-disassembly-row {
+    display: grid;
+    grid-template-columns: minmax(128px, auto) minmax(180px, 1fr) minmax(90px, auto);
+    gap: 10px;
+    padding: 3px 5px;
+    border-bottom: 1px solid var(--theia-widget-border);
+    align-items: baseline;
+}
+.inu-disassembly-row.current {
+    font-weight: 700;
+    background: color-mix(in srgb, var(--theia-debugIcon-breakpointForeground, #e5b454) 14%, transparent);
+    border-left: 3px solid var(--theia-debugIcon-breakpointForeground, #e5b454);
+}
+.inu-disassembly-address { opacity: .72; }
+.inu-disassembly-instruction { white-space: pre-wrap; overflow-wrap: anywhere; }
+.inu-disassembly-source { opacity: .68; text-align: right; white-space: nowrap; }
+
+/* 0.1.58 memory viewer and named NativeAOT locals/arguments. */
+.inu-memory-controls {
+    display: grid;
+    grid-template-columns: minmax(150px, 1fr) auto auto;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 6px;
+}
+.inu-memory-controls input { min-width: 0; }
+.inu-memory-controls select { min-width: 96px; }
+.inu-memory-view {
+    border: 1px solid var(--theia-widget-border);
+    max-height: 260px;
+    overflow: auto;
+    font-family: var(--theia-code-font-family);
+}
+.inu-memory-row {
+    display: grid;
+    grid-template-columns: minmax(145px, auto) minmax(360px, 1fr) minmax(130px, auto);
+    gap: 10px;
+    padding: 2px 5px;
+    border-bottom: 1px solid var(--theia-widget-border);
+    white-space: nowrap;
+}
+.inu-memory-row:last-child { border-bottom: 0; }
+.inu-memory-address { opacity: .72; }
+.inu-memory-hex { letter-spacing: .2px; }
+.inu-memory-ascii { opacity: .82; }
+.inu-local-row { grid-template-columns: minmax(150px, 35%) minmax(140px, 1fr) minmax(90px, auto); }
+.inu-local-row .inu-debug-name small { opacity: .68; font-weight: 400; }
+
+/* 0.1.54 CPU/thread context debugger */
+.inu-execution-context { cursor: pointer; }
+.inu-execution-context.current { outline: 1px solid var(--theia-focusBorder); background: var(--theia-list-activeSelectionBackground); }
+.inu-execution-context.current .inu-debug-name,
+.inu-execution-context.current .inu-debug-value,
+.inu-execution-context.current .inu-debug-address { color: var(--theia-list-activeSelectionForeground); }
+
+/* 0.1.58 page-table, heap and offline crash-dump debugging. */
+.inu-page-table,
+.inu-heap-blocks {
+    margin-top: 7px;
+    border: 1px solid var(--theia-widget-border);
+    max-height: 260px;
+    overflow: auto;
+}
+.inu-page-table-row {
+    display: grid;
+    grid-template-columns: 74px 150px 150px minmax(120px, 1fr) 150px;
+    gap: 8px;
+    padding: 3px 5px;
+    align-items: baseline;
+    border-bottom: 1px solid var(--theia-widget-border);
+    white-space: nowrap;
+}
+.inu-page-table-row:last-child { border-bottom: 0; }
+.inu-page-table-row.not-present { opacity: .55; }
+.inu-heap-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+    gap: 6px;
+    margin: 7px 0;
+}
+.inu-heap-summary span {
+    padding: 5px 7px;
+    border: 1px solid var(--theia-widget-border);
+    background: var(--theia-editor-background);
+}
+.inu-heap-block {
+    display: grid;
+    grid-template-columns: 110px 160px minmax(90px, 1fr) 100px;
+    gap: 8px;
+    padding: 3px 5px;
+    border-bottom: 1px solid var(--theia-widget-border);
+}
+.inu-heap-block:last-child { border-bottom: 0; }
+.inu-heap-block.free { opacity: .72; }
+.inu-debug-actions { display: flex; gap: 6px; margin-bottom: 6px; }
+.inu-crash-dump-actions {
+    display: grid;
+    grid-template-columns: auto minmax(220px, 1fr) auto;
+    gap: 6px;
+    align-items: center;
+}
+.inu-crash-dump-open {
+    margin-top: 7px;
+    padding: 7px;
+    border: 1px solid var(--theia-widget-border);
+    background: var(--theia-editor-background);
+    overflow-wrap: anywhere;
+}
+
+/* 0.1.58 professional OS engineering tools. */
+.inu-tool-page { height: 100%; overflow: auto; padding: 14px 16px; box-sizing: border-box; }
+.inu-tool-header, .inu-dashboard-title { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+.inu-tool-header h2, .inu-dashboard-title h1 { margin: 0 0 3px; }
+.inu-tool-header p, .inu-dashboard-title p { margin: 0; opacity: .72; }
+.inu-dashboard-logo { width: 58px; height: 58px; flex: 0 0 auto; background: url('./inu-logo.png') center/contain no-repeat; }
+.inu-dashboard-title > div:nth-child(2) { flex: 1; }
+.inu-dashboard-stats { display: grid; grid-template-columns: repeat(auto-fit,minmax(145px,1fr)); gap: 8px; margin-bottom: 14px; }
+.inu-dashboard-stat { display:flex; gap:9px; align-items:center; border:1px solid var(--theia-widget-border); background:var(--theia-editor-background); padding:9px; border-radius:4px; }
+.inu-dashboard-stat > .codicon { font-size:22px; opacity:.8; }
+.inu-dashboard-stat small, .inu-dashboard-stat strong { display:block; }
+.inu-dashboard-stat small { opacity:.65; }
+.inu-dashboard-grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(260px,1fr)); gap:10px; }
+.inu-dashboard-grid section { border:1px solid var(--theia-widget-border); padding:10px 12px; background:var(--theia-editor-background); }
+.inu-dashboard-grid h3 { margin:0 0 8px; }
+.inu-dashboard-grid dl { display:grid; grid-template-columns:auto 1fr; gap:5px 12px; margin:0; }
+.inu-dashboard-grid dt { opacity:.65; }.inu-dashboard-grid dd{margin:0;font-weight:600;}
+.inu-count { margin-left:7px; opacity:.6; font-size:.86em; }
+.inu-hardware-group { border-bottom:1px solid var(--theia-widget-border); }
+.inu-hardware-group summary { padding:7px 5px; cursor:pointer; font-weight:700; }
+.inu-hardware-group summary .codicon { margin-right:7px; }
+.inu-hardware-children { padding-left:20px; }
+.inu-hardware-node { display:grid; grid-template-columns:20px minmax(150px,1fr) auto; gap:5px; align-items:center; padding:5px 6px; }
+.inu-hardware-node:hover { background:var(--theia-list-hoverBackground); }
+.inu-hardware-node small { opacity:.55; }
+.inu-hardware-empty { padding:5px 7px 8px; opacity:.6; }
+.inu-kernel-console { min-height:150px; }
+.inu-console-root { height:100%; display:flex; flex-direction:column; }
+.inu-console-toolbar { display:flex; gap:7px; align-items:center; padding:5px 7px; border-bottom:1px solid var(--theia-widget-border); }
+.inu-console-toolbar input { min-width:180px; flex:1; }.inu-console-toolbar label{display:flex;gap:4px;align-items:center;white-space:nowrap;}
+.inu-console-lines { flex:1; overflow:auto; padding:5px 8px; background:var(--theia-terminal-background,var(--theia-editor-background)); color:var(--theia-terminal-foreground,var(--theia-foreground)); font-family:var(--theia-code-font-family); white-space:pre-wrap; }
+.inu-console-line { min-height:1.35em; }.inu-console-line.ok{color:var(--theia-testing-iconPassed,var(--theia-successBackground));}.inu-console-line.warn{color:var(--theia-editorWarning-foreground,#cca700);}.inu-console-line.fail{color:var(--theia-errorForeground,#f48771);}.inu-console-line.info{opacity:.82;}
+.inu-test-list { border:1px solid var(--theia-widget-border); }
+.inu-test-row { display:grid; grid-template-columns:22px minmax(220px,1fr) auto; gap:7px; align-items:center; padding:7px; border-bottom:1px solid var(--theia-widget-border); }
+.inu-test-row:last-child{border-bottom:0}.inu-test-row small{display:block;opacity:.62;overflow-wrap:anywhere;margin-top:2px}.inu-test-output{max-height:330px;overflow:auto;padding:8px;border:1px solid var(--theia-widget-border);background:var(--theia-terminal-background,var(--theia-editor-background));font-family:var(--theia-code-font-family);white-space:pre-wrap}.inu-test-pass{color:var(--theia-testing-iconPassed,#73c991);margin-left:8px}.inu-test-fail{color:var(--theia-errorForeground,#f48771);margin-left:8px}
+
+/* 0.1.53 kernel tracing/boot analyser and performance profiler. */
+.inu-tool-actions { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.inu-engineering-section { border:1px solid var(--theia-widget-border); background:var(--theia-editor-background); padding:10px 12px; margin-bottom:10px; }
+.inu-engineering-section h3 { margin:0 0 8px; }
+.inu-section-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.inu-section-heading h3 { margin:0; }
+.inu-muted { opacity:.65; }
+.inu-boot-timeline { display:flex; flex-direction:column; gap:7px; }
+.inu-boot-stage-label { display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
+.inu-boot-stage small { opacity:.58; display:block; overflow-wrap:anywhere; }
+.inu-boot-track,.inu-profile-track { height:8px; background:var(--theia-progressBar-background,rgba(127,127,127,.2)); overflow:hidden; border-radius:4px; }
+.inu-boot-bar,.inu-profile-track>span { display:block; height:100%; min-width:2px; background:var(--theia-progressBar-foreground,var(--theia-focusBorder)); border-radius:4px; }
+.inu-boot-bar.warning { background:var(--theia-editorWarning-foreground,#cca700); }
+.inu-boot-bar.failed { background:var(--theia-errorForeground,#f48771); }
+.inu-trace-events { border:1px solid var(--theia-widget-border); max-height:420px; overflow:auto; font-family:var(--theia-code-font-family); }
+.inu-trace-event { display:grid; grid-template-columns:95px 85px minmax(150px,1fr) 70px 90px minmax(160px,1fr); gap:8px; align-items:baseline; padding:4px 6px; border-bottom:1px solid var(--theia-widget-border); }
+.inu-trace-event:last-child { border-bottom:0; }
+.inu-trace-time,.inu-trace-category { opacity:.7; }
+.inu-trace-category { text-transform:uppercase; font-size:.82em; }
+.inu-trace-event.warning { border-left:3px solid var(--theia-editorWarning-foreground,#cca700); }
+.inu-trace-event.error { border-left:3px solid var(--theia-errorForeground,#f48771); }
+.inu-trace-event small { opacity:.62; overflow-wrap:anywhere; }
+.inu-telemetry-help { opacity:.68; }
+.inu-profiler-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:10px; }
+.inu-profile-row { display:grid; grid-template-columns:70px minmax(120px,1fr) 60px 85px; gap:8px; align-items:center; padding:5px 0; }
+.inu-profile-functions { border:1px solid var(--theia-widget-border); }
+.inu-profile-function { display:grid; grid-template-columns:minmax(150px,1.2fr) minmax(110px,1fr) 60px 90px 75px; gap:8px; align-items:center; padding:5px 6px; border-bottom:1px solid var(--theia-widget-border); }
+.inu-profile-function:last-child { border-bottom:0; }
+.inu-profile-function>span:first-child small { display:block; opacity:.58; }
+.inu-profiler-counters { border:1px solid var(--theia-widget-border); }
+.inu-profiler-counter { display:grid; grid-template-columns:minmax(180px,1fr) 110px 120px minmax(120px,1fr); gap:8px; align-items:baseline; padding:5px 6px; border-bottom:1px solid var(--theia-widget-border); }
+.inu-profiler-counter:last-child { border-bottom:0; }
+@media (max-width:900px){.inu-trace-event{grid-template-columns:80px 70px minmax(130px,1fr);}.inu-trace-event>*:nth-child(n+4){display:none}.inu-profile-function{grid-template-columns:minmax(130px,1fr) minmax(90px,1fr) 55px}.inu-profile-function>*:nth-child(n+4){display:none}}
+
+
+/* 0.1.53 Driver Development Centre. */
+.inu-driver-create { border: 1px solid var(--theia-widget-border); padding: 14px; margin-bottom: 18px; border-radius: 6px; }
+.inu-driver-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); gap: 10px; margin: 10px 0; }
+.inu-driver-field { display:flex; flex-direction:column; gap:4px; }
+.inu-driver-field input,.inu-driver-field select { background:var(--theia-input-background); color:var(--theia-input-foreground); border:1px solid var(--theia-input-border); padding:6px; }
+.inu-driver-capabilities { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:10px 0; }
+.inu-driver-capabilities label,.inu-driver-test-option { display:flex; gap:5px; align-items:center; }
+.inu-driver-list { display:flex; flex-direction:column; gap:7px; }
+.inu-driver-card { border:1px solid var(--theia-widget-border); border-radius:5px; padding:9px 11px; }
+.inu-driver-card>div:first-child { display:flex; gap:8px; align-items:center; }
+.inu-driver-kind,.inu-driver-configured { padding:1px 6px; border-radius:10px; background:var(--theia-badge-background); color:var(--theia-badge-foreground); font-size:11px; }
+.inu-driver-configured { background:var(--theia-statusBar-background); }
+.inu-driver-card small { display:block; opacity:.7; margin-top:3px; }
+.inu-driver-meta { margin-top:5px; font-size:12px; opacity:.85; }
+.inu-driver-runtime { margin-top:18px; }
+
+
+/* Inu Target Manager */
+.inu-target-create { margin-bottom: 18px; }
+.inu-target-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px 14px; margin:10px 0 14px; }
+.inu-target-field { display:flex; flex-direction:column; gap:5px; }
+.inu-target-field span { font-size:12px; opacity:.78; }
+.inu-target-field input,.inu-target-field select { min-height:28px; }
+.inu-target-list { display:grid; gap:10px; }
+.inu-target-card { border:1px solid var(--theia-panel-border); padding:12px; border-radius:4px; }
+.inu-target-card.active { outline:1px solid var(--theia-focusBorder); }
+.inu-target-card-title { display:flex; align-items:center; gap:8px; }
+.inu-target-active { font-size:10px; font-weight:700; padding:2px 5px; border:1px solid var(--theia-focusBorder); border-radius:3px; }
+.inu-target-meta { margin-top:6px; opacity:.78; font-size:12px; }
+.inu-target-actions { display:flex; gap:8px; margin-top:10px; }
+.inu-target-note { margin-top:18px; }
+
+
+/* Kath 0.2.5 OS-specific Static Analyzers */
+.inu-analyzer-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; margin-bottom:12px; }
+.inu-analyzer-summary>div { border:1px solid var(--theia-widget-border); background:var(--theia-editor-background); padding:9px 10px; display:flex; flex-direction:column; gap:2px; }
+.inu-analyzer-summary strong { font-size:20px; }.inu-analyzer-summary span{opacity:.68;font-size:12px;}
+.inu-analyzer-list { border:1px solid var(--theia-widget-border); max-height:520px; overflow:auto; }
+.inu-analyzer-row { display:grid; grid-template-columns:72px 72px minmax(280px,1fr) minmax(180px,.65fr); gap:8px; align-items:start; padding:7px 8px; border-bottom:1px solid var(--theia-widget-border); border-left:3px solid transparent; }
+.inu-analyzer-row:last-child{border-bottom:0}.inu-analyzer-row.error{border-left-color:var(--theia-errorForeground,#f48771)}.inu-analyzer-row.warning{border-left-color:var(--theia-editorWarning-foreground,#cca700)}.inu-analyzer-row.info{border-left-color:var(--theia-editorInfo-foreground,#75beff)}
+.inu-analyzer-severity { font-size:11px;font-weight:700;opacity:.8; }.inu-analyzer-message small{display:block;opacity:.55;margin-top:2px}.inu-analyzer-row code{font-size:11px;opacity:.72;overflow-wrap:anywhere}.inu-analyzer-clean{opacity:.72}.inu-analyzer-rule-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:6px 12px}
+@media (max-width:900px){.inu-analyzer-row{grid-template-columns:62px 62px minmax(180px,1fr)}.inu-analyzer-row code{grid-column:1/-1}}
+
+/* Kath 0.2.5 Binary / Symbol Explorer */
+.inu-binary-page { overflow:hidden; display:flex; flex-direction:column; }
+.inu-binary-layout { min-height:0; flex:1; display:grid; grid-template-columns:minmax(250px,330px) minmax(0,1fr); gap:12px; }
+.inu-binary-list { min-height:0; overflow:auto; border:1px solid var(--theia-widget-border); background:var(--theia-editor-background); }
+.inu-binary-list-title { position:sticky; top:0; z-index:1; padding:8px 10px; font-weight:700; background:var(--theia-sideBar-background,var(--theia-editor-background)); border-bottom:1px solid var(--theia-widget-border); }
+.inu-binary-list>p { padding:8px 10px; opacity:.7; }
+.inu-binary-item { width:100%; border:0; border-bottom:1px solid var(--theia-widget-border); text-align:left; padding:8px 10px; color:var(--theia-foreground); background:transparent; cursor:pointer; }
+.inu-binary-item:hover { background:var(--theia-list-hoverBackground); }
+.inu-binary-item.selected { background:var(--theia-list-activeSelectionBackground); color:var(--theia-list-activeSelectionForeground); }
+.inu-binary-item span { display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
+.inu-binary-item em { font-style:normal; text-transform:uppercase; opacity:.6; font-size:10px; }
+.inu-binary-item small { display:block; opacity:.62; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px; }
+.inu-binary-detail { min-width:0; min-height:0; overflow:auto; }
+.inu-binary-detail section { border:1px solid var(--theia-widget-border); background:var(--theia-editor-background); padding:10px 12px; margin-bottom:10px; }
+.inu-binary-detail h3 { margin:0 0 8px; }
+.inu-binary-heading,.inu-binary-symbol-header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+.inu-binary-heading code { display:block; margin-top:3px; opacity:.65; overflow-wrap:anywhere; }
+.inu-binary-kind { white-space:nowrap; padding:2px 7px; border-radius:10px; background:var(--theia-badge-background); color:var(--theia-badge-foreground); font-size:11px; }
+.inu-binary-facts { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:7px; margin-top:10px; }
+.inu-binary-facts>div { border:1px solid var(--theia-widget-border); padding:7px 8px; }
+.inu-binary-facts span,.inu-binary-facts strong { display:block; }.inu-binary-facts span{font-size:11px;opacity:.62;margin-bottom:2px}.inu-binary-facts strong{font-family:var(--theia-code-font-family);overflow-wrap:anywhere}
+.inu-binary-message { opacity:.7; }.inu-binary-error{color:var(--theia-errorForeground);margin:8px 0;}
+.inu-binary-symbol-header>div { display:flex; gap:6px; }.inu-binary-symbol-header input{min-width:260px;}
+.inu-binary-table-wrap { overflow:auto; max-height:430px; border:1px solid var(--theia-widget-border); }
+.inu-binary-table { width:100%; border-collapse:collapse; font-size:12px; }
+.inu-binary-table th { position:sticky; top:0; z-index:1; text-align:left; background:var(--theia-sideBar-background,var(--theia-editor-background)); }
+.inu-binary-table th,.inu-binary-table td { padding:5px 7px; border-bottom:1px solid var(--theia-widget-border); vertical-align:top; }
+.inu-binary-table tbody tr:last-child td { border-bottom:0; }
+.inu-binary-table td small { display:block; opacity:.55; margin-top:2px; overflow-wrap:anywhere; }
+.inu-binary-address { font-family:var(--theia-code-font-family); white-space:nowrap; }.inu-binary-number{white-space:nowrap;}
+@media (max-width:900px){.inu-binary-layout{grid-template-columns:1fr}.inu-binary-list{max-height:220px}.inu-binary-symbol-header{display:block}.inu-binary-symbol-header>div{margin-top:7px}.inu-binary-symbol-header input{min-width:0;flex:1}}
+
+/* Kath 0.3.1 Memory-map Visualiser */
+.inu-memory-map-page section { margin: 16px 0 22px; }
+.inu-memory-help,.inu-memory-status { padding: 16px; border: 1px solid var(--theia-panel-border); border-radius: 4px; }
+.inu-memory-facts { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 8px; }
+.inu-memory-facts>div { padding: 10px 12px; background: var(--theia-editorWidget-background); border: 1px solid var(--theia-panel-border); border-radius: 4px; }
+.inu-memory-facts span,.inu-memory-facts strong { display: block; }
+.inu-memory-facts span { opacity: .72; font-size: 11px; text-transform: uppercase; }
+.inu-memory-facts strong { margin-top: 4px; font-family: var(--theia-code-font-family); }
+.inu-memory-note,.inu-memory-track-note { opacity: .75; }
+.inu-memory-category-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(145px,1fr)); gap: 7px; margin-bottom: 12px; }
+.inu-memory-category { text-align: left; padding: 9px 10px; border: 1px solid var(--theia-panel-border); border-left-width: 5px; background: var(--theia-editorWidget-background); color: var(--theia-foreground); cursor: pointer; }
+.inu-memory-category strong,.inu-memory-category span,.inu-memory-category small { display: block; }
+.inu-memory-category span { margin-top: 3px; font-family: var(--theia-code-font-family); }
+.inu-memory-category small { opacity: .68; }
+.inu-memory-track { display: flex; width: 100%; min-height: 34px; overflow: hidden; border: 1px solid var(--theia-panel-border); background: var(--theia-editorWidget-background); margin: 8px 0 5px; }
+.inu-memory-segment { min-width: 2px; height: 34px; border-right: 1px solid rgba(0,0,0,.2); }
+.inu-memory-reservations { display: grid; grid-template-columns: repeat(auto-fit,minmax(250px,1fr)); gap: 8px; }
+.inu-memory-reservations>div { display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; padding: 10px; border: 1px solid var(--theia-panel-border); border-radius: 4px; }
+.inu-memory-reservations code,.inu-memory-reservations small { grid-column: 1 / -1; }
+.inu-memory-reservations small { opacity: .7; }
+.inu-memory-controls { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.inu-memory-controls>div { display: flex; gap: 6px; }
+.inu-memory-controls input { min-width: 280px; }
+.inu-memory-table-wrap { overflow: auto; max-height: 52vh; border: 1px solid var(--theia-panel-border); }
+.inu-memory-table { border-collapse: collapse; width: 100%; min-width: 1050px; }
+.inu-memory-table th { position: sticky; top: 0; z-index: 1; background: var(--theia-editorWidget-background); text-align: left; }
+.inu-memory-table th,.inu-memory-table td { padding: 7px 9px; border-bottom: 1px solid var(--theia-panel-border); white-space: nowrap; }
+.inu-memory-table td small { display: block; opacity: .65; margin-left: 14px; }
+.inu-memory-table code { font-family: var(--theia-code-font-family); }
+.inu-memory-dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; }
+.cat-usable { border-color: #4caf50 !important; background-color: #4caf50; }
+.cat-boot-reclaimable { border-color: #8bc34a !important; background-color: #8bc34a; }
+.cat-runtime { border-color: #9c27b0 !important; background-color: #9c27b0; }
+.cat-acpi-reclaimable { border-color: #03a9f4 !important; background-color: #03a9f4; }
+.cat-acpi-nvs { border-color: #3f51b5 !important; background-color: #3f51b5; }
+.cat-mmio { border-color: #ff9800 !important; background-color: #ff9800; }
+.cat-reserved { border-color: #607d8b !important; background-color: #607d8b; }
+.cat-unusable { border-color: #f44336 !important; background-color: #f44336; }
+.cat-persistent { border-color: #009688 !important; background-color: #009688; }
+.cat-unaccepted { border-color: #795548 !important; background-color: #795548; }
+.cat-unknown { border-color: #9e9e9e !important; background-color: #9e9e9e; }
+.inu-memory-category.cat-usable,.inu-memory-category.cat-boot-reclaimable,.inu-memory-category.cat-runtime,.inu-memory-category.cat-acpi-reclaimable,.inu-memory-category.cat-acpi-nvs,.inu-memory-category.cat-mmio,.inu-memory-category.cat-reserved,.inu-memory-category.cat-unusable,.inu-memory-category.cat-persistent,.inu-memory-category.cat-unaccepted,.inu-memory-category.cat-unknown { background: var(--theia-editorWidget-background); }
+
+
+/* Kath 0.3.1 Interrupt / APIC Visualiser */
+.inu-interrupt-page section { margin: 16px 0 22px; }
+.inu-interrupt-facts { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; }
+.inu-interrupt-facts>div,.inu-apic-topology>div { border:1px solid var(--theia-panel-border); padding:10px; display:flex; flex-direction:column; gap:4px; }
+.inu-interrupt-facts span,.inu-apic-topology small { opacity:.72; }
+.inu-apic-topology { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; }
+.inu-apic-registers { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:6px; }
+.inu-apic-registers>div { display:grid; grid-template-columns:1fr auto auto; gap:8px; border-bottom:1px solid var(--theia-panel-border); padding:6px; }
+.inu-interrupt-table-wrap { overflow:auto; max-height:430px; border:1px solid var(--theia-panel-border); }
+.inu-interrupt-table { width:100%; border-collapse:collapse; font-size:12px; }
+.inu-interrupt-table th,.inu-interrupt-table td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--theia-panel-border); white-space:nowrap; }
+.inu-interrupt-table th { position:sticky; top:0; background:var(--theia-editor-background); z-index:1; }
+
+
+/* Kath 0.3.1 Syscall Explorer */
+.inu-syscall-facts,.inu-syscall-counts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:10px 0 14px}.inu-syscall-facts>div,.inu-syscall-counts>div{border:1px solid var(--theia-editorWidget-border);background:var(--theia-sideBar-background);padding:10px;border-radius:4px;display:flex;flex-direction:column;gap:4px}.inu-syscall-facts span,.inu-syscall-counts span{font-size:11px;color:var(--theia-descriptionForeground);text-transform:uppercase}.inu-syscall-addresses{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.inu-syscall-description{display:block;color:var(--theia-descriptionForeground);margin-top:3px;max-width:420px}.inu-syscall-page table code{white-space:nowrap}
+
+/* Inu 0.3.1: embedded Help -> SDK API documentation browser. */
+.inu-sdk-api-widget {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+.inu-sdk-api-widget > div {
+    height: 100%;
+    min-height: 0;
+}
+.inu-sdk-api-frame {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 480px;
+    border: 0;
+    background: white;
+}
+
+
+/* Kath 0.3.1 Image / Disk Explorer */
+.inu-image-disk-page{height:100%;min-height:0;overflow:auto;padding:12px}.inu-disk-layout{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr);gap:12px;min-height:0}.inu-disk-images{border:1px solid var(--theia-panel-border);background:var(--theia-sideBar-background);padding:8px;overflow:auto;max-height:calc(100vh - 170px)}.inu-disk-images h3{margin:4px 4px 8px}.inu-disk-image{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--theia-panel-border);background:transparent;color:var(--theia-foreground);padding:8px;cursor:pointer}.inu-disk-image:hover,.inu-disk-image.selected{background:var(--theia-list-activeSelectionBackground);color:var(--theia-list-activeSelectionForeground)}.inu-disk-image strong,.inu-disk-image small{display:block}.inu-disk-image small{opacity:.68;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inu-disk-detail{min-width:0}.inu-disk-detail section{border:1px solid var(--theia-panel-border);background:var(--theia-editor-background);padding:11px 12px;margin-bottom:10px}.inu-disk-detail h3{margin:0 0 8px}.inu-disk-title,.inu-disk-section-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.inu-disk-title code{display:block;opacity:.65;margin-top:3px;overflow-wrap:anywhere}.inu-disk-title>span{padding:2px 8px;border-radius:10px;background:var(--theia-badge-background);color:var(--theia-badge-foreground)}.inu-disk-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:7px;margin-top:10px}.inu-disk-facts>div,.inu-disk-volume-grid>div{border:1px solid var(--theia-panel-border);padding:8px}.inu-disk-facts span,.inu-disk-facts strong,.inu-disk-volume-grid strong,.inu-disk-volume-grid span,.inu-disk-volume-grid small{display:block}.inu-disk-facts span{font-size:11px;opacity:.68;text-transform:uppercase}.inu-disk-facts strong{margin-top:3px;font-family:var(--theia-code-font-family);overflow-wrap:anywhere}.inu-disk-table-wrap,.inu-disk-hex-wrap{overflow:auto;border:1px solid var(--theia-panel-border);max-height:360px}.inu-disk-table,.inu-disk-hex{border-collapse:collapse;width:100%;font-size:12px}.inu-disk-table th,.inu-disk-table td,.inu-disk-hex th,.inu-disk-hex td{padding:6px 8px;border-bottom:1px solid var(--theia-panel-border);text-align:left;white-space:nowrap}.inu-disk-table th,.inu-disk-hex th{position:sticky;top:0;background:var(--theia-editorWidget-background);z-index:1}.inu-disk-table td small{display:block;opacity:.65;margin-top:2px}.inu-disk-volume-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px}.inu-disk-volume-grid span,.inu-disk-volume-grid small{opacity:.7;margin-top:3px}.inu-disk-section-head input{min-width:260px}.inu-disk-tree{border:1px solid var(--theia-panel-border);max-height:380px;overflow:auto}.inu-disk-tree button{display:flex;justify-content:space-between;gap:14px;width:100%;border:0;border-bottom:1px solid var(--theia-panel-border);background:transparent;color:var(--theia-foreground);padding-top:6px;padding-bottom:6px;padding-right:9px;text-align:left;cursor:pointer}.inu-disk-tree button:hover,.inu-disk-tree button.selected{background:var(--theia-list-activeSelectionBackground);color:var(--theia-list-activeSelectionForeground)}.inu-disk-tree small{opacity:.65;white-space:nowrap}.inu-disk-read-controls{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}.inu-disk-read-controls label{display:flex;flex-direction:column;gap:3px;font-size:11px;opacity:.85}.inu-disk-read-controls input{width:130px}.inu-disk-hex{font-family:var(--theia-code-font-family)}.inu-disk-hex td:nth-child(2){min-width:390px}.inu-disk-hex td:nth-child(3){letter-spacing:.5px}@media(max-width:900px){.inu-disk-layout{grid-template-columns:1fr}.inu-disk-images{max-height:220px}.inu-disk-section-head{display:block}.inu-disk-section-head input{margin-top:7px;min-width:0;width:100%}}
+
+/* 0.10.11: keep Monaco/Output painting contained without clipping Theia's
+   bottom-panel tab/control bar. 0.10.11 applied overflow/paint containment to
+   the entire bottom panel and every direct Lumino widget, which also clipped
+   the standard Problems/Output toolbar. */
+#theia-bottom-content-panel,
+.theia-bottom-content-panel {
+    min-height: 0;
+    overflow: hidden !important;
+    contain: paint;
+    isolation: isolate;
+}
+
+/* The outer dock owns the tab/control strip and must not clip it. */
+#theia-bottom-panel,
+.theia-bottom-panel {
+    overflow: visible !important;
+    contain: none;
+    isolation: isolate;
+}
+
+/* Explicitly restore both Lumino class generations used by Theia releases. */
+#theia-bottom-panel > .lm-TabBar,
+#theia-bottom-panel > .p-TabBar,
+.theia-bottom-panel > .lm-TabBar,
+.theia-bottom-panel > .p-TabBar {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    flex: 0 0 auto;
+    min-height: 30px;
+    overflow: visible !important;
+    z-index: 5;
+}
+
+/* Only real content widgets are clipped. Never apply this to a TabBar. */
+#theia-bottom-content-panel > .p-Widget,
+#theia-bottom-content-panel > .lm-Widget,
+.theia-bottom-content-panel > .p-Widget,
+.theia-bottom-content-panel > .lm-Widget {
+    min-height: 0;
+    overflow: hidden;
+}
+
+
+/* 0.10.11: shell-level repair marks the real Lumino bottom control strip.
+   This only preserves its layout priority; paint isolation remains on content. */
+[data-inu-bottom-controls="restored"] {
+    position: relative;
+    z-index: 6;
+    flex: 0 0 auto;
+}
+
+
+/* 0.10.11: guaranteed visible bottom-panel controls owned by Inu. */
+.inu-bottom-control-strip {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 31px;
+    flex: 0 0 31px;
+    padding: 0 7px;
+    border-bottom: 1px solid var(--theia-panel-border);
+    background: var(--theia-editor-background);
+    color: var(--theia-foreground);
+    position: relative;
+    z-index: 20;
+    box-sizing: border-box;
+}
+.inu-bottom-control-tabs,
+.inu-bottom-control-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+.inu-bottom-control-strip button {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    min-height: 25px;
+    padding: 2px 8px;
+    cursor: pointer;
+    border-radius: 3px;
+}
+.inu-bottom-control-strip button:hover {
+    background: var(--theia-list-hoverBackground);
+}
+.inu-bottom-output-channel {
+    max-width: 190px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 2px 8px;
+    border: 1px solid var(--theia-widget-border);
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+
+/* 0.10.11: attach directly to ApplicationShell.bottomPanel.node. */
+.inu-bottom-panel-host {
+    position: relative !important;
+    padding-top: 31px !important;
+    box-sizing: border-box !important;
+}
+.inu-bottom-panel-host > .inu-bottom-control-strip {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 31px;
+    min-height: 31px;
+    z-index: 100 !important;
+}
+
+
+/* 0.10.11: visual selection follows the actual activated bottom widget. */
+.inu-bottom-control-tabs button.inu-bottom-tab-selected {
+    border-bottom: 2px solid var(--theia-focusBorder);
+    background: var(--theia-list-activeSelectionBackground);
+    color: var(--theia-list-activeSelectionForeground);
+}
+
+/* 0.13.0 QEMU hardware test matrix */
+.inu-matrix-section { border:1px solid var(--theia-widget-border); padding:12px; margin-bottom:16px; }
+.inu-matrix-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+.inu-matrix-heading h3 { margin-top:0; }
+.inu-matrix-heading p { margin-bottom:4px; opacity:.78; max-width:850px; }
+.inu-matrix-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+/* 0.0.185 Debug-only driver/device coverage summary. */
+.inu-driver-coverage { margin:10px 0; max-height:300px; }
+.inu-driver-coverage .inu-matrix-row { min-width:720px; grid-template-columns:145px 150px minmax(300px,1fr) 70px; }
+
+.inu-matrix-summary { display:flex; gap:18px; flex-wrap:wrap; margin:10px 0; padding:8px 10px; background:var(--theia-editor-background); border:1px solid var(--theia-widget-border); }
+.inu-matrix-table { overflow:auto; border:1px solid var(--theia-widget-border); max-height:420px; }
+.inu-matrix-row { min-width:850px; display:grid; grid-template-columns:120px 55px 90px 110px 110px 110px 90px 90px; align-items:center; gap:8px; padding:6px 8px; border-bottom:1px solid var(--theia-widget-border); }
+.inu-matrix-row:last-child { border-bottom:0; }
+.inu-matrix-row.header { position:sticky; top:0; z-index:1; font-weight:600; background:var(--theia-editor-background); }
+.inu-matrix-row.running { background:var(--theia-list-activeSelectionBackground); }
+.inu-matrix-row.failed { background:color-mix(in srgb, var(--theia-errorForeground) 9%, transparent); }
+.inu-matrix-status { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; }
+.inu-matrix-status.passed { color:var(--theia-testing-iconPassed,#73c991); }
+.inu-matrix-status.failed { color:var(--theia-errorForeground,#f48771); }
+.inu-matrix-status.running { color:var(--theia-progressBar-background,#0e70c0); }
+.inu-matrix-status.skipped { opacity:.65; }
+.inu-matrix-output-wrap { margin-top:12px; }
+
+/* Kath 0.31.2: structured compiler Problems grid with source navigation. */
+.inu-problems-widget{min-height:0;overflow:hidden;background:var(--theia-editor-background)}
+.inu-problems-page{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;color:var(--theia-foreground)}
+.inu-problems-summary{display:flex;gap:16px;align-items:center;min-height:28px;padding:3px 10px;border-bottom:1px solid var(--theia-panel-border);font-size:12px;background:var(--theia-sideBar-background)}
+.inu-problems-summary .error{color:var(--theia-errorForeground)}
+.inu-problems-summary .warning{color:var(--theia-editorWarning-foreground)}
+.inu-problems-grid{min-height:0;overflow:auto;display:block;font-size:12px}
+.inu-problems-header,.inu-problem-row{display:grid;grid-template-columns:90px minmax(150px,240px) 70px minmax(320px,1fr);align-items:center;min-width:720px}
+.inu-problems-header{position:sticky;top:0;z-index:2;min-height:27px;background:var(--theia-editorWidget-background);border-bottom:1px solid var(--theia-panel-border);font-weight:600}
+.inu-problems-header>span,.inu-problem-row>span{padding:5px 8px;border-right:1px solid var(--theia-panel-border);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inu-problem-row{min-height:27px;border-bottom:1px solid color-mix(in srgb,var(--theia-panel-border) 65%,transparent);cursor:pointer}
+.inu-problem-row:hover,.inu-problem-row:focus{outline:none;background:var(--theia-list-hoverBackground)}
+.inu-problem-row:focus{box-shadow:inset 0 0 0 1px var(--theia-focusBorder)}
+.inu-problem-severity{display:flex;align-items:center;gap:6px}
+.inu-problem-row.error .inu-problem-severity{color:var(--theia-errorForeground)}
+.inu-problem-row.warning .inu-problem-severity{color:var(--theia-editorWarning-foreground)}
+.inu-problem-line{text-align:right;font-variant-numeric:tabular-nums}
+.inu-problem-message code{margin-right:7px;color:var(--theia-descriptionForeground)}
+.inu-problems-empty{padding:18px 12px;color:var(--theia-descriptionForeground)}
+
+/* Kath application surface follows the host operating-system theme. */
+html { color-scheme: light dark; }
+html, body, #theia-app-shell, .theia-ApplicationShell {
+    background: var(--theia-editor-background, Canvas) !important;
+    color: var(--theia-editor-foreground, CanvasText);
+}
+
+/* Kath 0.2.36 architecture workspace. Source remains in Monaco; these views
+   expose OS structure, source components and their interface relationships. */
+.kath-architecture-widget,
+.kath-component-library-widget,
+.kath-component-inspector-widget {
+    background: var(--theia-editor-background);
+    color: var(--theia-editor-foreground);
+}
+.kath-architecture-page { box-sizing:border-box; height:100%; overflow:auto; padding:20px; }
+.kath-architecture-empty { padding:24px; }
+.kath-architecture-header { display:flex; justify-content:space-between; gap:20px; align-items:center; margin-bottom:18px; }
+.kath-architecture-header h1 { margin:0; font-size:24px; }
+.kath-architecture-header p { margin:4px 0 0; color:var(--theia-descriptionForeground); }
+.kath-language-badge { border:1px solid var(--theia-widget-border); border-radius:999px; padding:5px 10px; color:var(--theia-descriptionForeground); white-space:nowrap; }
+.kath-architecture-columns { display:grid; grid-template-columns:repeat(4,minmax(210px,1fr)); gap:12px; align-items:start; }
+.kath-architecture-area { min-height:220px; padding:10px; border:1px solid var(--theia-widget-border); border-radius:7px; background:var(--theia-sideBar-background); }
+.kath-architecture-area h2 { margin:2px 3px 10px; font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--theia-descriptionForeground); }
+.kath-architecture-node-list { display:flex; flex-direction:column; gap:8px; }
+.kath-architecture-node { appearance:none; width:100%; padding:10px; text-align:left; color:inherit; background:var(--theia-editorWidget-background); border:1px solid var(--theia-widget-border); border-radius:6px; cursor:pointer; }
+.kath-architecture-node:hover,.kath-component-entry:hover { background:var(--theia-list-hoverBackground); }
+.kath-architecture-node.selected,.kath-component-entry.selected { outline:1px solid var(--theia-focusBorder); background:var(--theia-list-activeSelectionBackground); color:var(--theia-list-activeSelectionForeground); }
+.kath-architecture-node strong,.kath-architecture-node small { display:block; }
+.kath-architecture-node small { margin-top:3px; opacity:.68; }
+.kath-architecture-node > div { display:flex; justify-content:space-between; gap:9px; margin-top:8px; font-size:11px; }
+.kath-architecture-node > div span { opacity:.68; }
+.kath-architecture-node > div b { text-align:right; overflow-wrap:anywhere; }
+.kath-architecture-node em { display:block; margin-top:8px; color:var(--theia-editorWarning-foreground); font-size:11px; font-style:normal; }
+.kath-architecture-placeholder,.kath-side-empty,.kath-inspector-empty { padding:10px; color:var(--theia-descriptionForeground); }
+.kath-component-library { height:100%; overflow:auto; }
+.kath-component-search { position:sticky; top:0; z-index:1; display:flex; align-items:center; gap:6px; padding:8px; background:var(--theia-sideBar-background); }
+.kath-component-search input { flex:1; min-width:0; }
+.kath-component-list { display:flex; flex-direction:column; gap:7px; padding:0 8px 8px; }
+.kath-component-entry { appearance:none; width:100%; padding:9px; text-align:left; color:inherit; background:var(--theia-editorWidget-background); border:1px solid var(--theia-widget-border); border-radius:5px; cursor:pointer; }
+.kath-component-entry strong,.kath-component-entry span,.kath-component-entry small { display:block; }
+.kath-component-entry span { margin-top:3px; color:var(--theia-descriptionForeground); line-height:1.35; }
+.kath-component-entry small { margin-top:7px; opacity:.65; }
+.kath-component-inspector { padding:12px; overflow:auto; }
+.kath-component-inspector h2 { margin:0; font-size:18px; }
+.kath-component-inspector > p { color:var(--theia-descriptionForeground); line-height:1.4; }
+.kath-component-inspector dl { display:grid; grid-template-columns:auto 1fr; gap:6px 10px; }
+.kath-component-inspector dt { color:var(--theia-descriptionForeground); }
+.kath-component-inspector dd { margin:0; overflow-wrap:anywhere; }
+.kath-component-inspector section { margin-top:16px; }
+.kath-component-inspector section h3 { margin:0 0 7px; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--theia-descriptionForeground); }
+.kath-interface-chips { display:flex; flex-wrap:wrap; gap:5px; }
+.kath-interface-chips span { padding:4px 7px; border-radius:4px; background:var(--theia-badge-background); color:var(--theia-badge-foreground); }
+.kath-source-authority-note { margin-top:18px; padding:9px 10px; border-left:3px solid var(--theia-focusBorder); background:var(--theia-textBlockQuote-background); color:var(--theia-descriptionForeground); line-height:1.4; }
+@media (max-width:1250px) { .kath-architecture-columns { grid-template-columns:repeat(2,minmax(220px,1fr)); } }
+
+
+.kath-implementation-status { display:inline-block; margin-top:6px; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; }
+.kath-implementation-status.implemented { color: var(--theia-testing-iconPassed); border:1px solid var(--theia-testing-iconPassed); }
+.kath-implementation-status.unresolved { color: var(--theia-testing-iconFailed); border:1px solid var(--theia-testing-iconFailed); }
+.kath-implementation-status.os-owned { color: var(--theia-descriptionForeground); border:1px solid var(--theia-panel-border); }
+.kath-implementation-note { margin:10px 0; padding:8px; border-left:3px solid var(--theia-panel-border); }
+.kath-implementation-note.unresolved { border-left-color: var(--theia-testing-iconFailed); color: var(--theia-errorForeground); }
+
+.inu-generation-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--theia-editorWidget-background); z-index: 1000; }
+.inu-generation-panel { min-width: 360px; max-width: 560px; padding: 28px; border: 1px solid var(--theia-editorWidget-border); background: var(--theia-editor-background); box-shadow: 0 8px 28px rgba(0,0,0,.35); }
+.inu-generation-title { font-size: 20px; font-weight: 600; margin-bottom: 10px; }
+.inu-generation-percent { font-size: 28px; margin-bottom: 12px; }
+.inu-generation-track { height: 8px; width: 100%; background: var(--theia-progressBar-background); overflow: hidden; margin-bottom: 14px; }
+.inu-generation-fill { height: 100%; background: var(--theia-progressBar-foreground); transition: width .12s linear; }
+.inu-generation-message { opacity: .85; }

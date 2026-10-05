@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "ideVersion": "0.45.15",
+  "policy": {
+    "productionCriticalAllowed": 0,
+    "productionHighPolicy": "fail-unless-explicitly-approved",
+    "developmentFindings": "reported-but-not-shipped-runtime-gated"
+  },
+  "approvedProductionHighPackages": [
+    {
+      "name": "electron",
+      "reviewAfter": "2026-09-30",
+      "reason": "Eclipse Theia 1.74.1 @theia/electron declares an exact peer dependency on Electron 42.3.0. Retained until a published Theia line accepts a patched Electron runtime without peer-resolution overrides."
+    },
+    {
+      "name": "extract-zip",
+      "reviewAfter": "2026-09-30",
+      "reason": "Transitive Electron installer dependency. Retained only while required by the Theia-compatible Electron 42.3.0 package; review with the next compatible Theia/Electron update."
+    }
+  ]
+}
