@@ -14,11 +14,10 @@ interface InuOperatingSystemRegistryEntry {
 }
 
 interface InuOperatingSystemListState {
-    schemaVersion: 4;
+    schemaVersion: 5;
     defaultLocation: string;
     locations: string[];
     systems: InuOperatingSystemRegistryEntry[];
-    nextInstanceByName: Record<string, number>;
 }
 
 interface LegacyOperatingSystemListState {
@@ -28,7 +27,7 @@ interface LegacyOperatingSystemListState {
     projectPaths?: string[];
     hiddenPaths?: string[];
     instanceNumbers?: Record<string, number>;
-    nextInstanceByName?: Record<string, number>;
+    nextInstanceByName?: Record<string, number>; // legacy only; ignored from schema 5 onward
 }
 
 export interface InuAllocatedProjectDirectory {
@@ -114,18 +113,21 @@ export class InuOsRegistry {
                 if (this.findByLocation(state, projectRoot)) continue;
                 const identity = await this.readProjectIdentity(projectRoot);
                 if (!identity) continue;
-                const instanceNumber = this.allocateInstanceNumber(state, identity.name);
+                const instanceNumber = this.instanceNumberFromName(identity.name);
                 state.systems.push({ id: randomUUID(), name: identity.name, location: path.resolve(projectRoot), hidden: false, instanceNumber });
                 changed = true;
             }
         }
 
         const systems: InuOperatingSystem[] = [];
+        const existingEntries: InuOperatingSystemRegistryEntry[] = [];
         for (const entry of state.systems) {
-            if (entry.hidden) continue;
             const identity = await this.readProjectIdentity(entry.location);
-            if (!identity) continue;
+            if (!identity) { changed = true; continue; }
+            existingEntries.push(entry);
+            if (entry.hidden) continue;
             if (identity.name !== entry.name) { entry.name = identity.name; changed = true; }
+            entry.instanceNumber = this.instanceNumberFromName(entry.name);
             systems.push({
                 id: entry.id,
                 name: entry.name,
@@ -136,6 +138,7 @@ export class InuOsRegistry {
             });
         }
 
+        if (state.systems.length !== existingEntries.length) state.systems = existingEntries;
         if (changed) await this.writeState(state);
         return systems.sort((a, b) => a.name.localeCompare(b.name) || a.instanceNumber - b.instanceNumber || a.location.localeCompare(b.location));
     }
@@ -146,8 +149,11 @@ export class InuOsRegistry {
         const state = await this.readState();
         this.addLocation(state, root);
         state.defaultLocation = root;
-        let instanceNumber = Math.max(1, state.nextInstanceByName[name] ?? 1);
-        let folderName = instanceNumber === 1 ? name : `${name}-${instanceNumber}`;
+        // The filesystem is the single authority for OS-instance allocation.
+        // Kath does not keep a second persistent numbering counter: if the OS
+        // directories are deleted, allocation starts again from the unsuffixed name.
+        let instanceNumber = 1;
+        let folderName = name;
         let projectRoot = path.join(root, folderName);
         while (true) {
             try {
@@ -161,7 +167,6 @@ export class InuOsRegistry {
             }
         }
         const osId = randomUUID();
-        state.nextInstanceByName[name] = instanceNumber + 1;
         // The allocated folder name is the canonical identity of this concrete OS instance.
         // Do not retain the unsuffixed requested name here, otherwise Kath can show
         // MyOs1-10 while the generated/running OS identifies itself as MyOs1.
@@ -182,7 +187,7 @@ export class InuOsRegistry {
             existing.name = name;
             existing.hidden = false;
         } else {
-            state.systems.push({ id: randomUUID(), name, location: resolved, hidden: false, instanceNumber: this.allocateInstanceNumber(state, name) });
+            state.systems.push({ id: randomUUID(), name, location: resolved, hidden: false, instanceNumber: this.instanceNumberFromName(name) });
         }
         await this.writeState(state);
     }
@@ -230,10 +235,9 @@ export class InuOsRegistry {
         return state.systems.find(candidate => this.normalizedPath(candidate.location) === key);
     }
 
-    protected allocateInstanceNumber(state: InuOperatingSystemListState, name: string): number {
-        const next = Math.max(1, state.nextInstanceByName[name] ?? 1);
-        state.nextInstanceByName[name] = next + 1;
-        return next;
+    protected instanceNumberFromName(name: string): number {
+        const match = /-(\d+)$/.exec(name.trim());
+        return match ? Math.max(1, Number.parseInt(match[1], 10) || 1) : 1;
     }
 
     protected normalizedPath(projectPath: string): string {
@@ -252,14 +256,16 @@ export class InuOsRegistry {
     protected async readState(): Promise<InuOperatingSystemListState> {
         try {
             const parsed = JSON.parse(await fs.readFile(this.stateFile, 'utf8')) as Partial<InuOperatingSystemListState> & LegacyOperatingSystemListState;
-            if (parsed.schemaVersion === 4 && Array.isArray(parsed.systems)) {
-                return {
-                    schemaVersion: 4,
+            if ((parsed.schemaVersion === 5 || parsed.schemaVersion === 4) && Array.isArray(parsed.systems)) {
+                const state: InuOperatingSystemListState = {
+                    schemaVersion: 5,
                     defaultLocation: typeof parsed.defaultLocation === 'string' && parsed.defaultLocation.trim() ? path.resolve(parsed.defaultLocation) : '',
                     locations: Array.isArray(parsed.locations) ? parsed.locations.filter(value => typeof value === 'string').map(value => path.resolve(value)) : [],
-                    systems: parsed.systems.filter((value): value is InuOperatingSystemRegistryEntry => !!value && typeof value.id === 'string' && typeof value.name === 'string' && typeof value.location === 'string').map(value => ({ ...value, location: path.resolve(value.location), hidden: !!value.hidden, instanceNumber: Math.max(1, Number(value.instanceNumber) || 1) })),
-                    nextInstanceByName: parsed.nextInstanceByName && typeof parsed.nextInstanceByName === 'object' ? parsed.nextInstanceByName as Record<string, number> : {}
+                    systems: parsed.systems.filter((value): value is InuOperatingSystemRegistryEntry => !!value && typeof value.id === 'string' && typeof value.name === 'string' && typeof value.location === 'string').map(value => ({ ...value, location: path.resolve(value.location), hidden: !!value.hidden, instanceNumber: this.instanceNumberFromName(value.name) }))
                 };
+                // Schema 4's nextInstanceByName was a second source of truth and is deliberately discarded.
+                if (parsed.schemaVersion !== 5) await this.writeState(state);
+                return state;
             }
 
             // One-time migration from the old path/index registry. Each migrated OS receives
@@ -275,16 +281,15 @@ export class InuOsRegistry {
                 systems.push({ id: randomUUID(), name: identity.name, location: projectRoot, hidden: hidden.includes(key), instanceNumber: Math.max(1, instanceNumbers[key] ?? 1) });
             }
             const state: InuOperatingSystemListState = {
-                schemaVersion: 4,
+                schemaVersion: 5,
                 defaultLocation: typeof parsed.defaultLocation === 'string' && parsed.defaultLocation.trim() ? path.resolve(parsed.defaultLocation) : '',
                 locations: Array.isArray(parsed.locations) ? parsed.locations.filter(value => typeof value === 'string').map(value => path.resolve(value)) : [],
-                systems,
-                nextInstanceByName: parsed.nextInstanceByName && typeof parsed.nextInstanceByName === 'object' ? parsed.nextInstanceByName as Record<string, number> : {}
+                systems
             };
             await this.writeState(state);
             return state;
         } catch {
-            return { schemaVersion: 4, defaultLocation: '', locations: [], systems: [], nextInstanceByName: {} };
+            return { schemaVersion: 5, defaultLocation: '', locations: [], systems: [] };
         }
     }
 
