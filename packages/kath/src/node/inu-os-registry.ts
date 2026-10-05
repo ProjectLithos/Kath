@@ -33,6 +33,8 @@ interface LegacyOperatingSystemListState {
 
 export interface InuAllocatedProjectDirectory {
     projectRoot: string;
+    /** Canonical name allocated to this OS instance (for example MyOs1-10). */
+    name: string;
     instanceNumber: number;
     osId: string;
 }
@@ -160,9 +162,13 @@ export class InuOsRegistry {
         }
         const osId = randomUUID();
         state.nextInstanceByName[name] = instanceNumber + 1;
-        state.systems.push({ id: osId, name, location: path.resolve(projectRoot), hidden: false, instanceNumber });
+        // The allocated folder name is the canonical identity of this concrete OS instance.
+        // Do not retain the unsuffixed requested name here, otherwise Kath can show
+        // MyOs1-10 while the generated/running OS identifies itself as MyOs1.
+        const allocatedName = folderName;
+        state.systems.push({ id: osId, name: allocatedName, location: path.resolve(projectRoot), hidden: false, instanceNumber });
         await this.writeState(state);
-        return { projectRoot, instanceNumber, osId };
+        return { projectRoot, name: allocatedName, instanceNumber, osId };
     }
 
     async registerProject(projectRoot: string): Promise<void> {

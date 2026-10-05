@@ -2851,6 +2851,10 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             const authoritativeConfiguration: InuProjectConfiguration = { ...this.copyConfiguration(configuration), location };
             const allocation = await this.osRegistry.allocateProjectDirectory(authoritativeConfiguration.name, location);
             const projectRoot = allocation.projectRoot;
+            // The concrete allocated instance name is authoritative everywhere.
+            // If MyOs1 already exists and the registry allocates MyOs1-10, the
+            // generated manifests, source tree and running OS must also say MyOs1-10.
+            authoritativeConfiguration.name = allocation.name;
             const generatedProjects = this.buildProjectGraph(authoritativeConfiguration);
             const totalSteps = generatedProjects.length + 19;
             let completedSteps = 0;
