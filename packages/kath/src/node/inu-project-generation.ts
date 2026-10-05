@@ -453,7 +453,7 @@ ${kernelStartup}
 `);
         if (configuration.startupModel === 'cli' || configuration.startupModel === 'cli-gui') {
             await this.writeCoderOwnedFile(path.join(projectRoot, 'Userland', osName, 'Shell.cs'),
-`using Inu.Userland.Runtime;
+`using System;
 
 namespace ${ns}.Userland;
 
@@ -465,8 +465,8 @@ public static class Shell
 
     public static void Configure()
     {
-        // Coder-facing ring-3 output example:
-        // Output.WriteLine("Howdy");
+        // Standard freestanding .NET console API supplied by Inu:
+        // Console.WriteLine("Howdy");
     }
 }
 `);
