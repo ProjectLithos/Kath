@@ -94,15 +94,9 @@ import { InuRuntimeDebugSupport } from './inu-runtime-debug-support';
 import { RunSession, SourceBreakpoint } from './inu-debug-types';
 import { InuDiskImageService } from './inu-disk-image-service';
 
-// Migration/discovery roots for OSes created by older Kath/Inu layouts. New OS creation never uses these paths implicitly.
-// They are scanned only so existing OS source can be assigned a stable local registry ID and managed/deleted correctly.
-const INU_LEGACY_OS_LOCATIONS = ['C:\\DCLG-OSes', 'C:\\KandI-OSes', 'C:\\InuOSes'];
-
-
-
 @injectable()
 export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements InuProjectService {
-    protected readonly osRegistry = new InuOsRegistry(INU_LEGACY_OS_LOCATIONS);
+    protected readonly osRegistry = new InuOsRegistry();
     protected readonly diskImageService = new InuDiskImageService(INU_SDK_ROOT, projectRoot => this.isOperatingSystemPath(projectRoot));
     protected readonly runSessions = new Map<string, RunSession>();
     protected readonly testRuns = new Map<string, { output: string; complete: boolean; exitCode?: number; error?: string }>();

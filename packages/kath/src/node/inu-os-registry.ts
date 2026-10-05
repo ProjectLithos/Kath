@@ -14,9 +14,9 @@ interface InuOperatingSystemRegistryEntry {
 }
 
 interface InuOperatingSystemListState {
-    schemaVersion: 5;
-    defaultLocation: string;
-    locations: string[];
+    schemaVersion: 6;
+    /** UI convenience only: the last parent folder chosen by the user. Never an OS-discovery or allocation authority. */
+    lastCreationLocation: string;
     systems: InuOperatingSystemRegistryEntry[];
 }
 
@@ -48,7 +48,7 @@ export interface InuAllocatedProjectDirectory {
 export class InuOsRegistry {
     protected readonly stateFile: string;
 
-    constructor(protected readonly legacyLocations: readonly string[] = []) {
+    constructor() {
         const stateRoot = process.env.KATH_STATE_ROOT
             ? path.resolve(process.env.KATH_STATE_ROOT)
             : path.join(os.homedir(), '.kath');
@@ -62,12 +62,9 @@ export class InuOsRegistry {
     }
 
     async getDefaultLocation(): Promise<string> {
-        const state = await this.readState();
-        if (state.defaultLocation) return state.defaultLocation;
-        if (state.locations.length === 0) return '';
-        state.defaultLocation = state.locations[state.locations.length - 1];
-        await this.writeState(state);
-        return state.defaultLocation;
+        // This is only a folder-picker convenience. It is not used to discover OSes,
+        // decide whether an OS exists, or allocate an instance number.
+        return (await this.readState()).lastCreationLocation;
     }
 
     async nextDefaultOperatingSystemName(baseName: string, location?: string): Promise<string> {
@@ -100,25 +97,10 @@ export class InuOsRegistry {
 
     async listOperatingSystems(): Promise<InuOperatingSystem[]> {
         const state = await this.readState();
-        await this.importLegacyDefaultLocation(state);
         let changed = false;
 
-        // Discover projects in registered parent locations, but assign every discovered
-        // OS a stable local ID before exposing it to the browser UI.
-        for (const location of state.locations) {
-            const entries = await fs.readdir(location, { withFileTypes: true }).catch(() => [] as import('fs').Dirent[]);
-            for (const entry of entries) {
-                if (!entry.isDirectory()) continue;
-                const projectRoot = path.join(location, entry.name);
-                if (this.findByLocation(state, projectRoot)) continue;
-                const identity = await this.readProjectIdentity(projectRoot);
-                if (!identity) continue;
-                const instanceNumber = this.instanceNumberFromName(identity.name);
-                state.systems.push({ id: randomUUID(), name: identity.name, location: path.resolve(projectRoot), hidden: false, instanceNumber });
-                changed = true;
-            }
-        }
-
+        // The registry contains exact project paths only. Do not scan parent/root
+        // directories: an end user may keep OSes in any folders they choose.
         const systems: InuOperatingSystem[] = [];
         const existingEntries: InuOperatingSystemRegistryEntry[] = [];
         for (const entry of state.systems) {
@@ -147,11 +129,9 @@ export class InuOsRegistry {
         const root = this.resolveLocation(location);
         await fs.mkdir(root, { recursive: true });
         const state = await this.readState();
-        this.addLocation(state, root);
-        state.defaultLocation = root;
-        // The filesystem is the single authority for OS-instance allocation.
-        // Kath does not keep a second persistent numbering counter: if the OS
-        // directories are deleted, allocation starts again from the unsuffixed name.
+        // Remembering the selected parent is only a UI convenience. Allocation is
+        // based solely on what exists in this user-selected folder at creation time.
+        state.lastCreationLocation = root;
         let instanceNumber = 1;
         let folderName = name;
         let projectRoot = path.join(root, folderName);
@@ -179,7 +159,6 @@ export class InuOsRegistry {
     async registerProject(projectRoot: string): Promise<void> {
         const resolved = path.resolve(projectRoot);
         const state = await this.readState();
-        this.addLocation(state, path.dirname(resolved));
         const identity = await this.readProjectIdentity(resolved);
         const name = identity?.name || path.basename(resolved);
         const existing = this.findByLocation(state, resolved);
@@ -255,21 +234,22 @@ export class InuOsRegistry {
 
     protected async readState(): Promise<InuOperatingSystemListState> {
         try {
-            const parsed = JSON.parse(await fs.readFile(this.stateFile, 'utf8')) as Partial<InuOperatingSystemListState> & LegacyOperatingSystemListState;
-            if ((parsed.schemaVersion === 5 || parsed.schemaVersion === 4) && Array.isArray(parsed.systems)) {
-                const state: InuOperatingSystemListState = {
-                    schemaVersion: 5,
-                    defaultLocation: typeof parsed.defaultLocation === 'string' && parsed.defaultLocation.trim() ? path.resolve(parsed.defaultLocation) : '',
-                    locations: Array.isArray(parsed.locations) ? parsed.locations.filter(value => typeof value === 'string').map(value => path.resolve(value)) : [],
-                    systems: parsed.systems.filter((value): value is InuOperatingSystemRegistryEntry => !!value && typeof value.id === 'string' && typeof value.name === 'string' && typeof value.location === 'string').map(value => ({ ...value, location: path.resolve(value.location), hidden: !!value.hidden, instanceNumber: this.instanceNumberFromName(value.name) }))
-                };
-                // Schema 4's nextInstanceByName was a second source of truth and is deliberately discarded.
-                if (parsed.schemaVersion !== 5) await this.writeState(state);
+            const parsed = JSON.parse(await fs.readFile(this.stateFile, 'utf8')) as Partial<InuOperatingSystemListState> & LegacyOperatingSystemListState & { lastCreationLocation?: string };
+            if (Array.isArray(parsed.systems)) {
+                const systems = parsed.systems
+                    .filter((value): value is InuOperatingSystemRegistryEntry => !!value && typeof value.id === 'string' && typeof value.name === 'string' && typeof value.location === 'string')
+                    .map(value => ({ ...value, location: path.resolve(value.location), hidden: !!value.hidden, instanceNumber: this.instanceNumberFromName(value.name) }));
+                const remembered = typeof parsed.lastCreationLocation === 'string' && parsed.lastCreationLocation.trim()
+                    ? path.resolve(parsed.lastCreationLocation)
+                    : (typeof parsed.defaultLocation === 'string' && parsed.defaultLocation.trim() ? path.resolve(parsed.defaultLocation) : '');
+                const state: InuOperatingSystemListState = { schemaVersion: 6, lastCreationLocation: remembered, systems };
+                if (parsed.schemaVersion !== 6) await this.writeState(state);
                 return state;
             }
 
-            // One-time migration from the old path/index registry. Each migrated OS receives
-            // a stable ID and retains its previous instance number and hidden state.
+            // One-time migration from the old path/index registry. Only exact project
+            // paths survive migration; old root-location lists and numbering counters
+            // are deliberately not carried forward.
             const legacyPaths = Array.isArray(parsed.projectPaths) ? parsed.projectPaths.filter(value => typeof value === 'string').map(value => path.resolve(value)) : [];
             const hidden = Array.isArray(parsed.hiddenPaths) ? parsed.hiddenPaths.filter(value => typeof value === 'string').map(value => value.toLowerCase()) : [];
             const instanceNumbers = parsed.instanceNumbers && typeof parsed.instanceNumbers === 'object' ? parsed.instanceNumbers as Record<string, number> : {};
@@ -280,16 +260,12 @@ export class InuOsRegistry {
                 const key = this.normalizedPath(projectRoot);
                 systems.push({ id: randomUUID(), name: identity.name, location: projectRoot, hidden: hidden.includes(key), instanceNumber: Math.max(1, instanceNumbers[key] ?? 1) });
             }
-            const state: InuOperatingSystemListState = {
-                schemaVersion: 5,
-                defaultLocation: typeof parsed.defaultLocation === 'string' && parsed.defaultLocation.trim() ? path.resolve(parsed.defaultLocation) : '',
-                locations: Array.isArray(parsed.locations) ? parsed.locations.filter(value => typeof value === 'string').map(value => path.resolve(value)) : [],
-                systems
-            };
+            const remembered = typeof parsed.defaultLocation === 'string' && parsed.defaultLocation.trim() ? path.resolve(parsed.defaultLocation) : '';
+            const state: InuOperatingSystemListState = { schemaVersion: 6, lastCreationLocation: remembered, systems };
             await this.writeState(state);
             return state;
         } catch {
-            return { schemaVersion: 5, defaultLocation: '', locations: [], systems: [] };
+            return { schemaVersion: 6, lastCreationLocation: '', systems: [] };
         }
     }
 
@@ -298,20 +274,4 @@ export class InuOsRegistry {
         await fs.writeFile(this.stateFile, JSON.stringify(state, null, 2) + '\n', 'utf8');
     }
 
-    protected addLocation(state: InuOperatingSystemListState, location: string): void {
-        const resolved = path.resolve(location);
-        const key = this.normalizedPath(resolved);
-        if (!state.locations.some(candidate => this.normalizedPath(candidate) === key)) state.locations.push(resolved);
-    }
-
-    protected async importLegacyDefaultLocation(state: InuOperatingSystemListState): Promise<void> {
-        for (const candidate of this.legacyLocations) {
-            if (!candidate || !candidate.trim()) continue;
-            const root = path.resolve(candidate);
-            try {
-                const stat = await fs.stat(root);
-                if (stat.isDirectory()) this.addLocation(state, root);
-            } catch { }
-        }
-    }
 }
