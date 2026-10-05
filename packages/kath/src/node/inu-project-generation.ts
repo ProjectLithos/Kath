@@ -453,7 +453,9 @@ ${kernelStartup}
 `);
         if (configuration.startupModel === 'cli' || configuration.startupModel === 'cli-gui') {
             await this.writeCoderOwnedFile(path.join(projectRoot, 'Userland', osName, 'Shell.cs'),
-`namespace ${ns}.Userland;
+`using Inu.Userland.Runtime;
+
+namespace ${ns}.Userland;
 
 /// <summary>Coder-owned shell behaviour. Executable discovery/launch is supplied by Userland/Provided/Shell.</summary>
 public static class Shell
@@ -463,6 +465,8 @@ public static class Shell
 
     public static void Configure()
     {
+        // Coder-facing ring-3 output example:
+        // Output.WriteLine("Howdy");
     }
 }
 `);
