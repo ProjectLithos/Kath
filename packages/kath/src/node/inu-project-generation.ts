@@ -458,6 +458,9 @@ ${kernelStartup}
 /// <summary>Coder-owned shell behaviour. Executable discovery/launch is supplied by Userland/Provided/Shell.</summary>
 public static class Shell
 {
+    /// <summary>The text displayed before each command line. Change this to customise the shell prompt.</summary>
+    public const string Prompt = "> ";
+
     public static void Configure()
     {
     }
