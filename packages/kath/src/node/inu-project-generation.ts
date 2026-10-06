@@ -477,6 +477,9 @@ public static class Kernel
         // Smp.SetRole(KernelCpuRole.Userland, KernelCpuSet.All());
         // Console.SetBufferCount(0); // automatic; 1/2/3 select explicit buffering
         // FileSystem.SetPathPolicy(new FileSystemPathPolicy(':', false, 20, false, true, "*?<>|"));
+        // FileSystem.SetLogicalPath(FileSystemLogicalPath.WritableUser, ":User");
+        // FileSystem.SetLogicalPath(FileSystemLogicalPath.VisibleUser, ":User:{user}");
+        // FileSystem.SetLogicalPath(FileSystemLogicalPath.Commands, ":System:Commands");
         // Processes.ConfigureGraphicalSession("/BIN/INU-DESKTOP.EXE", "/BIN/INU-LOGIN.EXE");
         // Processes.StartGraphicalSession();
         // Lifecycle facades remain available for FileSystem, Drivers, Graphics,
