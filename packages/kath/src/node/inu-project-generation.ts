@@ -471,9 +471,15 @@ public static class Kernel
 {
     public static Boolean Start()
     {
-        // This method owns post-bootstrap OS policy. Examples of supported policy
-        // controls (when selected) include Console, Time, Scheduler, Smp, Drivers,
-        // FileSystem, Graphics, Input, Networking, Audio and Power lifecycle facades.
+        // This method owns post-bootstrap OS policy. Examples:
+        // Scheduler.SetQuantumMilliseconds(5);
+        // Smp.SetRole(KernelCpuRole.Kernel, 0);
+        // Smp.SetRole(KernelCpuRole.Userland, KernelCpuSet.All());
+        // Console.SetBufferCount(0); // automatic; 1/2/3 select explicit buffering
+        // Processes.ConfigureGraphicalSession("/BIN/INU-DESKTOP.EXE", "/BIN/INU-LOGIN.EXE");
+        // Processes.StartGraphicalSession();
+        // Lifecycle facades remain available for FileSystem, Drivers, Graphics,
+        // Input, Networking, Audio, Time and Power when those facilities are selected.
 ${kernelStartup}
     }
 }
