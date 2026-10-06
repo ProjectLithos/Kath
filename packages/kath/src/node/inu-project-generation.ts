@@ -384,13 +384,17 @@ export abstract class InuProjectGenerationSupport {
         const directives: string[] = [
             'using System;',
             'using Inu.Kernel.Console;',
+            'using Inu.Kernel.Memory;',
+            'using Inu.Kernel.Processes;',
+            'using Inu.Kernel.SystemCalls;',
+            'using Inu.Kernel.Interrupts;',
             'using Inu.Kernel.Time;',
             'using Inu.Kernel.Power;'
         ];
 
         if (areas.Scheduler) directives.push('using Inu.Kernel.Scheduler;');
         if (configuration.smp) directives.push('using Inu.Kernel.Smp;');
-        if (areas.Drivers) directives.push('using Inu.Kernel.Drivers;');
+        if (areas.Drivers) { directives.push('using Inu.Kernel.Drivers;'); directives.push('using Inu.Kernel.Hardware;'); }
         if (areas.Storage || areas.Filesystems) directives.push('using Inu.Kernel.Storage;');
         if (configuration.graphics.length > 0) directives.push('using Inu.Kernel.Graphics;');
         if (areas.Input) directives.push('using Inu.Kernel.Input;');
