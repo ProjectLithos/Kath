@@ -377,9 +377,27 @@ export abstract class InuProjectGenerationSupport {
     }
 
     protected kernelUsingDirectives(configuration: InuProjectConfiguration): string {
-        const source = this.kernelSource(configuration);
-        const directives = Array.from(source.matchAll(/^using\s+[^;]+;\s*$/gm), match => match[0].trim());
-        return directives.length > 0 ? `${Array.from(new Set(directives)).join('\n')}\n\n` : '';
+        // Kernel/<OSName>/Kernel.cs is coder-owned policy source. Never inherit imports
+        // from Inu's generated bootstrap implementation: bootstrap/HAL namespaces are
+        // implementation detail, not the SDK surface promised to the OS author.
+        const areas = this.sdkKernelAreas(configuration);
+        const directives: string[] = [
+            'using System;',
+            'using Inu.Kernel.Console;',
+            'using Inu.Kernel.Time;',
+            'using Inu.Kernel.Power;'
+        ];
+
+        if (areas.Scheduler) directives.push('using Inu.Kernel.Scheduler;');
+        if (configuration.smp) directives.push('using Inu.Kernel.Smp;');
+        if (areas.Drivers) directives.push('using Inu.Kernel.Drivers;');
+        if (areas.Storage || areas.Filesystems) directives.push('using Inu.Kernel.Storage;');
+        if (configuration.graphics.length > 0) directives.push('using Inu.Kernel.Graphics;');
+        if (areas.Input) directives.push('using Inu.Kernel.Input;');
+        if (areas.Networking) directives.push('using Inu.Kernel.Networking;');
+        if (configuration.audio !== 'none' && this.driverKind(configuration, `hardware:${configuration.audio}`) === 'kernel-module') directives.push('using Inu.Kernel.Audio;');
+
+        return `${Array.from(new Set(directives)).join('\n')}\n\n`;
     }
 
     protected async materializeRequiredConsoleFont(projectRoot: string): Promise<void> {
@@ -440,13 +458,18 @@ public static class Boot
 `${kernelUsings}namespace ${ns}.Kernel;
 
 /// <summary>
-/// Coder-owned kernel behaviour. Kath&Inu never silently overwrites this file.
-/// The selected initial user environment is started here, by the coder's kernel.
+/// Coder-owned kernel policy. Kath&Inu never silently overwrites this file.
+/// The using directives above are the stable kernel-facing SDK surface for the
+/// facilities selected for this OS; Inu bootstrap/HAL implementation namespaces
+/// are intentionally not imported here.
 /// </summary>
 public static class Kernel
 {
     public static Boolean Start()
     {
+        // This method owns post-bootstrap OS policy. Examples of supported policy
+        // controls (when selected) include Console, Time, Scheduler, Smp, Drivers,
+        // FileSystem, Graphics, Input, Networking, Audio and Power lifecycle facades.
 ${kernelStartup}
     }
 }
