@@ -454,9 +454,9 @@ public static class Boot
 }
 `);
         const kernelStartup = configuration.startupModel === 'gui'
-            ? `        global::${ns}.Userland.Gui.Configure();\n        return DesktopOrTextSessionStartup.Run();`
+            ? `        global::${ns}.Userland.Gui.Configure();\n        return DesktopSession.Run();`
             : configuration.startupModel === 'cli' || configuration.startupModel === 'cli-gui'
-                ? `        return TextConsoleSessionStartup.Run();`
+                ? `        return TextSession.Run();`
                 : '        return true;';
         await this.writeCoderOwnedFile(path.join(projectRoot, 'Kernel', osName, 'Kernel.cs'),
 `${kernelUsings}namespace ${ns}.Kernel;
