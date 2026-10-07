@@ -503,6 +503,7 @@ public static class Shell
     public static void Configure()
     {
         // Standard freestanding .NET console API supplied by Inu:
+        // Console.Clear();
         // Console.WriteLine("Howdy");
     }
 }
@@ -1143,6 +1144,7 @@ public static unsafe class Kernel
         if (!ProtectionStartup.Initialize()) return false;
         if (!ProcessRuntimeStartup.Initialize()) return false;
         if (!TimerDispatchStartup.Initialize()) return false;
+        if (!InputHardwareStartup.Initialize()) return false;
         if (!BootstrapGraphicsTransportStartup.Initialize()) return false;
         if (!KernelStructuredLogging.InfoLine("microkernel", "Kernel.KMain", "Selected microkernel mechanisms are online; higher services remain outside the kernel.")) return false;
         if (!UserlandCommandStartup.Initialize(boot)) return false;
