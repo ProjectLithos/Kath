@@ -356,7 +356,8 @@ export class InuWidget extends BaseWidget {
     }
 
     protected async openOperatingSystem(os: InuOperatingSystem): Promise<void> {
-        window.sessionStorage.setItem(INU_EXPLICIT_WORKSPACE_OPEN, os.uri); this.workspaceService.open(new URI(os.uri), { preserveWindow: true });
+        window.sessionStorage.setItem(INU_EXPLICIT_WORKSPACE_OPEN, os.uri);
+        await this.workspaceService.open(new URI(os.uri), { preserveWindow: true });
     }
 
     protected async removeOperatingSystemFromList(os: InuOperatingSystem): Promise<void> {
@@ -399,7 +400,23 @@ export class InuWidget extends BaseWidget {
             this.startGenerationProgressPolling(); const result = await generation;
             if (!result.success) { this.generationStatus = `Generation failed: ${result.error ?? 'Unknown error'}`; await this.messages.error(this.generationStatus); return; }
             this.configuration = c; this.generationPercent = 100; this.generationStatus = `OS generated at ${result.projectPath ?? this.reconfiguringProjectPath}.`;
-            if (!this.reconfiguringProjectPath) { await this.refreshOperatingSystems(); if (result.projectPath) { const os = this.operatingSystems.find(item => item.path.toLowerCase() === result.projectPath!.toLowerCase()); if (os) await this.openOperatingSystem(os); } }
+            if (!this.reconfiguringProjectPath) {
+                await this.refreshOperatingSystems();
+                if (result.projectPath) {
+                    const normalizePath = (value: string) => value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+                    const generatedPath = normalizePath(result.projectPath);
+                    const os = this.operatingSystems.find(item =>
+                        normalizePath(item.path) === generatedPath ||
+                        normalizePath(item.location) === generatedPath);
+                    if (os) {
+                        this.generationStatus = `OS generated at ${result.projectPath}. Opening source workspace…`;
+                        this.renderContent();
+                        await this.openOperatingSystem(os);
+                    } else {
+                        await this.messages.error(`OS source was generated at ${result.projectPath}, but Kath could not resolve its registered workspace.`);
+                    }
+                }
+            }
         } catch (error) { this.generationStatus = `Generation failed: ${error instanceof Error ? error.message : String(error)}`; await this.messages.error(this.generationStatus); }
         finally { this.creating = false; this.stopGenerationProgressPolling(); this.renderContent(); }
     }

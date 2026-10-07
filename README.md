@@ -4,7 +4,7 @@
 
 Kath is a Windows desktop application built on **Eclipse Theia** and **Electron**. It is a full code editor (Monaco, file explorer, terminal, search, tasks, debugging) with an operating-system composition and engineering layer added on top by the `kath` extension package.
 
-Current version: **0.0.89** (see `VERSION`)
+Current version: **0.0.90** (see `VERSION`)
 
 ---
 

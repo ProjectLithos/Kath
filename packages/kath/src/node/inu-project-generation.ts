@@ -548,18 +548,10 @@ public static class Shell
 
             String command = input.Substring(start, split - start);
             String arguments = argumentStart < end ? input.Substring(argumentStart, end - argumentStart) : String.Empty;
-            String[] candidates = FileSystemPaths.BuildCommandsPath(command);
-            Boolean launched = false;
-            for (Int32 index = 0; index < candidates.Length; index++)
-            {
-                if (Process.TryStart(candidates[index], arguments))
-                {
-                    launched = true;
-                    break;
-                }
-            }
 
-            if (!launched)
+            // A bare name is resolved by Inu against the configured CommandsPath(s).
+            // The coder-facing shell never needs to know about Get/Set/Event transport.
+            if (!Process.TryStart(command, arguments))
                 Console.WriteLine("Command not found.");
         }
     }
