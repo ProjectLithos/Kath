@@ -1,7 +1,7 @@
 {
   "name": "kath",
   "private": true,
-  "version": "0.0.77",
+  "version": "0.0.78",
   "workspaces": [
     "applications/*",
     "packages/*"
