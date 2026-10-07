@@ -491,20 +491,133 @@ ${kernelStartup}
         if (configuration.startupModel === 'cli' || configuration.startupModel === 'cli-gui') {
             await this.writeCoderOwnedFile(path.join(projectRoot, 'Userland', osName, 'Shell.cs'),
 `using System;
+using Inu.Userland.Runtime;
 
 namespace ${ns}.Userland;
 
-/// <summary>Coder-owned shell behaviour. Executable discovery/launch is supplied by Userland/Provided/Shell.</summary>
-public static class Shell
+/// <summary>Coder-owned shell behaviour. Configure runs once; Run owns the interactive command loop.</summary>
+public static unsafe class Shell
 {
-    /// <summary>The text displayed before each command line. Change this to customise the shell prompt.</summary>
-    public const string Prompt = "> ";
+    private const UInt32 MaximumPathBytes = 1536U;
 
+    /// <summary>The text displayed before each command line. Change this to customise the shell prompt.</summary>
+    public const string Prompt = "> \";
+
+    /// <summary>Runs once when the shell process starts. Put one-time shell setup here.</summary>
     public static void Configure()
     {
-        // Standard freestanding .NET console API supplied by Inu:
+        // Examples:
         // Console.Clear();
         // Console.WriteLine("Howdy");
+    }
+
+    /// <summary>Runs once after Configure and owns the shell's complete interactive loop.</summary>
+    public static void Run()
+    {
+        Byte* path = stackalloc Byte[(Int32)MaximumPathBytes];
+        Byte* commandRoot = stackalloc Byte[(Int32)MaximumPathBytes];
+        Byte pathSeparator = GetPathSeparator();
+        UInt32 commandRootLength = GetCommandsPath(commandRoot, MaximumPathBytes);
+
+        while (true)
+        {
+            Console.Write(Prompt);
+            String input = Console.ReadLine();
+            if (String.IsNullOrWhiteSpace(input))
+                continue;
+
+            Int64 result = RunCommand(input, path, commandRoot, commandRootLength, pathSeparator);
+            if (result == UserlandError.NotFound)
+            {
+                Console.WriteLine("Command not found.");
+                continue;
+            }
+
+            if (result < 0L)
+            {
+                Console.WriteLine("Could not launch executable.");
+                continue;
+            }
+        }
+    }
+
+    private static Int64 RunCommand(String input, Byte* path, Byte* commandRoot, UInt32 commandRootLength, Byte pathSeparator)
+    {
+        if (path == null || commandRoot == null || commandRootLength == 0U || pathSeparator == 0U)
+            return UserlandError.InvalidArgument;
+
+        Int32 start = 0;
+        Int32 end = input.Length;
+        while (start < end && input[start] == ' ') start++;
+        while (end > start && input[end - 1] == ' ') end--;
+        if (start == end) return 0L;
+
+        Int32 split = start;
+        while (split < end && input[split] != ' ') split++;
+        Int32 argumentStart = split;
+        while (argumentStart < end && input[argumentStart] == ' ') argumentStart++;
+
+        UInt32 commandLength = (UInt32)(split - start);
+        UInt32 argumentLength = (UInt32)(end - argumentStart);
+        Byte* command = stackalloc Byte[(Int32)commandLength];
+        Byte* arguments = stackalloc Byte[(Int32)(argumentLength == 0U ? 1U : argumentLength)];
+        if (!CopyAscii(input, start, commandLength, command) || !CopyAscii(input, argumentStart, argumentLength, arguments))
+            return UserlandError.InvalidArgument;
+
+        if (command[0] == pathSeparator)
+            return UserlandProcess.SpawnAscii(command, commandLength, arguments, argumentLength, null, 0U);
+
+        UInt32 pathLength = BuildCommandPath(path, MaximumPathBytes, commandRoot, commandRootLength, pathSeparator, command, commandLength, true);
+        if (pathLength == 0U) return UserlandError.InvalidArgument;
+        Int64 result = UserlandProcess.SpawnAscii(path, pathLength, arguments, argumentLength, null, 0U);
+        if (result != UserlandError.NotFound) return result;
+
+        pathLength = BuildCommandPath(path, MaximumPathBytes, commandRoot, commandRootLength, pathSeparator, command, commandLength, false);
+        return pathLength == 0U ? UserlandError.InvalidArgument : UserlandProcess.SpawnAscii(path, pathLength, arguments, argumentLength, null, 0U);
+    }
+
+    private static Boolean CopyAscii(String value, Int32 start, UInt32 length, Byte* destination)
+    {
+        if (destination == null || start < 0 || (UInt64)(UInt32)start + length > (UInt64)(UInt32)value.Length) return false;
+        for (UInt32 i = 0U; i < length; i++)
+        {
+            Char character = value[start + (Int32)i];
+            if (character > 0x7F) return false;
+            destination[i] = (Byte)character;
+        }
+        return true;
+    }
+
+    private static Byte GetPathSeparator()
+    {
+        Byte* current = stackalloc Byte[(Int32)MaximumPathBytes];
+        Int64 length = UserlandSystem.Call(UserlandOperation.Get, "process.current-directory", null, 0UL, current, MaximumPathBytes);
+        return length > 0L ? current[0] : (Byte)0;
+    }
+
+    private static UInt32 GetCommandsPath(Byte* destination, UInt32 capacity)
+    {
+        // FileSystemLogicalPath.Commands has the stable ABI id 7.
+        Int64 length = UserlandSystem.Call(UserlandOperation.Get, "filesystem.logical-path", null, 0UL, destination, capacity, 7UL);
+        return length > 0L ? (UInt32)length : 0U;
+    }
+
+    private static UInt32 BuildCommandPath(Byte* destination, UInt32 capacity, Byte* root, UInt32 rootLength, Byte separator, Byte* command, UInt32 commandLength, Boolean appendExe)
+    {
+        UInt32 required = rootLength + 1U + commandLength + (appendExe ? 4U : 0U);
+        if (destination == null || root == null || command == null || rootLength == 0U || separator == 0U || required >= capacity) return 0U;
+        UInt32 offset = 0U;
+        for (UInt32 i = 0U; i < rootLength; i++) destination[offset++] = root[i];
+        destination[offset++] = separator;
+        for (UInt32 i = 0U; i < commandLength; i++) destination[offset++] = command[i];
+        if (appendExe)
+        {
+            destination[offset++] = (Byte)'.';
+            destination[offset++] = (Byte)'E';
+            destination[offset++] = (Byte)'X';
+            destination[offset++] = (Byte)'E';
+        }
+        return offset;
     }
 }
 `);
