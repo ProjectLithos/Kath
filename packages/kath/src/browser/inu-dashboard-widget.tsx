@@ -23,7 +23,7 @@ export class InuDashboardWidget extends ReactWidget {
                 <section><h3>Execution model</h3><dl><dt>Kernel</dt><dd>{c.kernelArchitecture}</dd><dt>Startup</dt><dd>{c.startupModel}</dd><dt>Executables</dt><dd>{list(c.executableFormats)}</dd><dt>Applications</dt><dd>Ring 3</dd></dl></section>
                 <section><h3>Hardware support</h3><dl><dt>Selected</dt><dd>{list(c.hardwareSupport,'No optional hardware support selected')}</dd></dl></section>
                 {c.kernelArchitecture==='custom' && <section><h3>Custom placement</h3><dl><dt>Selected mechanisms</dt><dd>{Object.entries(c.customExecutionPlacements ?? {}).map(([key,value])=>`${key} → ${value}`).join(', ') || 'No custom placements recorded yet'}</dd></dl></section>}
-                <section><h3>Source ownership</h3><dl><dt>Execution partitions</dt><dd>Boot · Kernel · Userland</dd><dt>Provided source</dt><dd>Provided/</dd><dt>Coder-owned source</dt><dd>{c.name}/</dd></dl></section>
+                <section><h3>Source ownership</h3><dl><dt>Execution partitions</dt><dd>Boot · Kernel · Userland</dd><dt>SDK implementation</dt><dd>Hidden from the normal source explorer</dd><dt>Coder-owned source</dt><dd>{c.name}/</dd></dl></section>
             </div>
         </div>}
 }
