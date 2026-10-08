@@ -94,24 +94,39 @@ function build(root, force) {
     const common = [__filename, process.execPath, npmCli, path.join(path.dirname(npmCli), '..', 'package.json')];
     const packageInputs = [path.join(root, 'JSON'), path.join(extension, 'package.json'), path.join(electron, 'package.json')];
     const invoke = args => runNpm({ node: process.execPath, npmCli, args, cwd: workspace });
-    const dependencies = [path.join(modules, '@theia', 'core', 'package.json'), path.join(modules, '@theia', 'cli', 'package.json'), path.join(modules, 'typescript', 'bin', 'tsc'), path.join(modules, 'electron', 'dist', 'electron.exe')];
-    // Native addons are rebuilt by the next stage. Exclude their generated build
-    // directories from dependency integrity so rebuilding does not trigger npm install.
-    const dependencyDigest = report => {
-        console.log('[INFO] Kath npm dependencies: checking installed file contents (large installations can take several minutes)...');
-        const selected = files([modules], true, report).filter(p =>
-            !/\.node$/.test(p) && !/[\\/](?:build|out|Release|Debug|\.cache)[\\/]/i.test(p));
-        // The list is already sorted and resolved; do not traverse/stat it again.
-        return hashFiles(selected, selected, [], report);
+    const dependencyState = path.join(root, '.toolchain', 'StageState');
+    const dependencyMarker = path.join(dependencyState, 'npm-dependencies.complete');
+    const nativeMarker = path.join(dependencyState, 'electron-native.complete');
+    const dependencies = [
+        path.join(modules, '@theia', 'core', 'package.json'),
+        path.join(modules, '@theia', 'cli', 'package.json'),
+        path.join(modules, 'typescript', 'bin', 'tsc'),
+        path.join(modules, 'electron', 'dist', 'electron.exe'),
+        dependencyMarker
+    ];
+    const writeMarker = (file, value) => {
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, value + '\n');
     };
-    const installedFiles = () => {
-        console.log('[INFO] Kath: scanning installed package metadata and native binaries...');
-        return files([modules], true, progress('Kath installed package scan')).filter(p => /(?:package\.json|\.node|electron\.exe)$/.test(p));
-    };
-    stage({ name: 'Kath npm dependencies', cacheRoot, inputs: [...common, ...packageInputs, path.join(root, 'Scripts', 'Install-KathToolchain.ps1')], outputs: dependencies, outputDigest: dependencyDigest, force, args: ['install', '--include=dev', '--workspaces'], action: () => invoke(['install', '--include=dev', '--workspaces']) });
-    // Fingerprint installed package metadata and native binaries as downstream inputs.
-    // An npm reinstall or altered native addon must invalidate affected build stages.
-    let installed = installedFiles();
+    // Dependency validity is determined by the manifests/toolchain that define the
+    // npm installation plus a small set of required files. Never recursively hash
+    // node_modules during a normal cache hit: Theia's dependency tree contains tens
+    // of thousands of files and made an unchanged Kath build spend minutes just
+    // proving that npm had already completed.
+    const dependencyDigest = report => hash(dependencies, [], true, report);
+    stage({
+        name: 'Kath npm dependencies',
+        cacheRoot,
+        inputs: [...common, ...packageInputs, path.join(root, 'Scripts', 'Install-KathToolchain.ps1')],
+        outputs: dependencies,
+        outputDigest: dependencyDigest,
+        force,
+        args: ['install', '--include=dev', '--workspaces'],
+        action: () => {
+            invoke(['install', '--include=dev', '--workspaces']);
+            writeMarker(dependencyMarker, 'Kath npm dependencies installed');
+        }
+    });
     const msvcInputs = [];
     const vswhere = path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Microsoft Visual Studio', 'Installer', 'vswhere.exe');
     if (fs.existsSync(vswhere)) {
@@ -122,11 +137,21 @@ function build(root, force) {
             for (const name of ['cl.exe', 'c1.dll', 'c1xx.dll', 'c2.dll', 'link.exe']) msvcInputs.push(path.join(path.dirname(compiler), name));
         }
     }
-    const nativeOutputs = installed.filter(p => /(?:\.node|electron\.exe)$/.test(p));
-    stage({ name: 'Kath Electron native modules', cacheRoot, inputs: [...common, ...packageInputs, ...msvcInputs, path.join(root, '.toolchain', 'Python', 'python.exe'), ...installed.filter(p => /package\.json$/.test(p))], outputs: nativeOutputs, force, args: ['run', 'rebuild', '--workspace', '@kath/electron'], action: () => invoke(['run', 'rebuild', '--workspace', '@kath/electron']) });
-    installed = installedFiles();
-    stage({ name: 'Kath extension', cacheRoot, inputs: [...common, ...packageInputs, ...installed, path.join(extension, 'src'), path.join(extension, 'tsconfig.json'), path.join(root, 'CJS', 'extension-files.cjs')], outputs: [path.join(extension, 'lib')], force, args: ['run', 'build', '--workspace', '@kath/extension'], action: () => invoke(['run', 'build', '--workspace', '@kath/extension']) });
-    stage({ name: 'Kath Electron frontend', cacheRoot, inputs: [...common, ...packageInputs, ...installed, ...files([path.join(extension, 'lib')], true), electron], outputs: [path.join(electron, 'lib'), path.join(electron, 'src-gen')], force, args: ['run', 'build:frontend', '--workspace', '@kath/electron'], action: () => invoke(['run', 'build:frontend', '--workspace', '@kath/electron']) });
+    const nativeOutputs = [path.join(modules, 'electron', 'dist', 'electron.exe'), nativeMarker];
+    stage({
+        name: 'Kath Electron native modules',
+        cacheRoot,
+        inputs: [...common, ...packageInputs, ...msvcInputs, path.join(root, '.toolchain', 'Python', 'python.exe'), dependencyMarker],
+        outputs: nativeOutputs,
+        force,
+        args: ['run', 'rebuild', '--workspace', '@kath/electron'],
+        action: () => {
+            invoke(['run', 'rebuild', '--workspace', '@kath/electron']);
+            writeMarker(nativeMarker, 'Kath Electron native modules rebuilt');
+        }
+    });
+    stage({ name: 'Kath extension', cacheRoot, inputs: [...common, ...packageInputs, dependencyMarker, nativeMarker, path.join(extension, 'src'), path.join(extension, 'tsconfig.json'), path.join(root, 'CJS', 'extension-files.cjs')], outputs: [path.join(extension, 'lib')], force, args: ['run', 'build', '--workspace', '@kath/extension'], action: () => invoke(['run', 'build', '--workspace', '@kath/extension']) });
+    stage({ name: 'Kath Electron frontend', cacheRoot, inputs: [...common, ...packageInputs, dependencyMarker, nativeMarker, ...files([path.join(extension, 'lib')], true), electron], outputs: [path.join(electron, 'lib'), path.join(electron, 'src-gen')], force, args: ['run', 'build:frontend', '--workspace', '@kath/electron'], action: () => invoke(['run', 'build:frontend', '--workspace', '@kath/electron']) });
 }
 module.exports = { files, hash, hashFiles, progress, stage, runNpm };
 if (require.main === module) {
