@@ -19,6 +19,7 @@ export type GuiModel = 'none' | 'framebuffer' | 'desktop';
 export type AudioModel = 'none' | 'hda' | 'ac97';
 export type VirtualisationModel = 'none' | 'guest' | 'hypervisor';
 export type SafetyProfile = 'general' | 'rtos' | 'safety-critical';
+export type InuQemuAccelerator = 'auto' | 'whpx' | 'kvm' | 'hvf' | 'tcg';
 
 /** Legacy execution-role settings retained only so existing 0.2.x projects can still be opened. */
 export interface InuCpuRoleAssignments {
@@ -63,6 +64,7 @@ export interface InuProjectConfiguration {
     // Transitional implementation settings, derived by Kath rather than exposed
     // as primary OS-design choices in the rewritten configurator.
     qemuCpuCount: number;
+    qemuAccelerator: InuQemuAccelerator;
     memorySystem: MemorySystem;
     scheduler: SchedulerModel;
     processSupport: ProcessSupport;
@@ -643,7 +645,6 @@ export interface InuProjectResult {
 
 export type InuTargetKind = 'qemu' | 'physical' | 'remote';
 export type InuTargetArchitecture = 'x86_64' | 'arm64' | 'riscv64';
-export type InuQemuAccelerator = 'tcg' | 'whpx' | 'auto';
 export type InuQemuDisplay = 'sdl' | 'gtk' | 'none';
 
 export interface InuQemuTargetSettings {

@@ -254,10 +254,15 @@ export abstract class InuRuntimeDebugSupport extends InuProjectGenerationSupport
         const qemuCpus = configured.configuration?.qemuCpuCount ?? qemu?.cpuCount ?? 1;
         const memoryMiB = Math.max(64, qemu?.memoryMiB ?? 512);
         const machine = qemu?.machine || 'q35';
-        const accelerator = qemu?.accelerator === 'whpx' ? 'whpx' : 'tcg,thread=multi';
+        const accelerator = qemu?.accelerator ?? 'auto';
         const display = qemu?.display || 'sdl';
+        const autoAccelerator = process.platform === 'win32' ? 'whpx:tcg' : process.platform === 'linux' ? 'kvm:tcg' : process.platform === 'darwin' ? 'hvf:tcg' : 'tcg';
+        const acceleratorArgs = accelerator === 'auto'
+            ? (autoAccelerator === 'tcg' ? ['-machine', machine, '-accel', 'tcg,thread=multi'] : ['-machine', `${machine},accel=${autoAccelerator}`])
+            : ['-machine', machine, '-accel', accelerator === 'tcg' ? 'tcg,thread=multi' : accelerator];
+        const cpuArgs = accelerator === 'tcg' ? ['-cpu', 'max'] : [];
         const args = [
-            '-machine', machine, '-accel', accelerator, '-cpu', 'max', '-smp', String(qemuCpus), '-m', `${memoryMiB}M`,
+            ...acceleratorArgs, ...cpuArgs, '-smp', String(qemuCpus), '-m', `${memoryMiB}M`,
             '-display', display,
             '-drive', `if=pflash,format=raw,unit=0,readonly=on,file=${ovmfCode}`,
             '-drive', `if=pflash,format=raw,unit=1,file=${varsCopy}`,

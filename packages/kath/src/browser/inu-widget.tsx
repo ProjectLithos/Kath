@@ -11,7 +11,8 @@ import {
     InuProjectService,
     KernelArchitecture,
     KathStartupModel,
-    KathExecutableFormat
+    KathExecutableFormat,
+    InuQemuAccelerator
 } from '../common/inu-protocol';
 
 export const INU_WIDGET_ID = 'inu.project.configurator';
@@ -79,6 +80,7 @@ export class InuWidget extends BaseWidget {
             // architectural choices above; they are intentionally not exposed as
             // primary design decisions in the 0.0.1 configurator.
             qemuCpuCount: 4,
+            qemuAccelerator: 'auto',
             memorySystem: 'paged',
             scheduler: 'preemptive',
             processSupport: 'processes',
@@ -225,6 +227,13 @@ export class InuWidget extends BaseWidget {
         const platform = this.fieldset('2. Platform');
         platform.appendChild(this.readonlyPath('Architecture', 'x64'));
         platform.appendChild(this.readonlyPath('Boot method', 'UEFI'));
+        platform.appendChild(this.selectInput('QEMU accelerator', c.qemuAccelerator, [
+            ['auto','Auto (recommended; use host acceleration with TCG fallback)'],
+            ['whpx','WHPX (Windows Hypervisor Platform)'],
+            ['kvm','KVM (Linux)'],
+            ['hvf','HVF (macOS Hypervisor Framework)'],
+            ['tcg','TCG (software emulation)']
+        ], value => c.qemuAccelerator = value as InuQemuAccelerator));
         platform.appendChild(this.element('div', 'inu-field-help', 'After UEFI hand-off, the kernel discovers CPU, memory, ACPI, PCI/PCIe and supported hardware at runtime.'));
         card.appendChild(platform);
 

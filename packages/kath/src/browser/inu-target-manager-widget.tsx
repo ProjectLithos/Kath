@@ -30,7 +30,7 @@ export class InuTargetManagerWidget extends ReactWidget {
     protected cpuCount = Math.max(1, Math.ceil((navigator.hardwareConcurrency || 2) / 2));
     protected memoryMiB = 512;
     protected machine = 'q35';
-    protected accelerator: InuQemuAccelerator = 'tcg';
+    protected accelerator: InuQemuAccelerator = 'auto';
     protected display: InuQemuDisplay = 'sdl';
     protected gdbHost = '127.0.0.1';
     protected gdbPort = 1234;
@@ -141,7 +141,7 @@ export class InuTargetManagerWidget extends ReactWidget {
                             {this.field('Virtual CPUs', this.cpuCount, v => this.cpuCount = Number(v), 'number')}
                             {this.field('RAM (MiB)', this.memoryMiB, v => this.memoryMiB = Number(v), 'number')}
                             {this.field('QEMU machine', this.machine, v => this.machine = v)}
-                            <label className='inu-target-field'><span>Accelerator</span><select value={this.accelerator} onChange={e => { this.accelerator = e.target.value as InuQemuAccelerator; this.update(); }}><option value='tcg'>TCG</option><option value='whpx'>WHPX</option><option value='auto'>Auto</option></select></label>
+                            <label className='inu-target-field'><span>Accelerator</span><select value={this.accelerator} onChange={e => { this.accelerator = e.target.value as InuQemuAccelerator; this.update(); }}><option value='auto'>Auto (recommended)</option><option value='whpx'>WHPX (Windows)</option><option value='kvm'>KVM (Linux)</option><option value='hvf'>HVF (macOS)</option><option value='tcg'>TCG (software)</option></select></label>
                             <label className='inu-target-field'><span>Display</span><select value={this.display} onChange={e => { this.display = e.target.value as InuQemuDisplay; this.update(); }}><option value='sdl'>SDL</option><option value='gtk'>GTK</option><option value='none'>None</option></select></label>
                         </>}
                         {this.kind !== 'qemu' && <>

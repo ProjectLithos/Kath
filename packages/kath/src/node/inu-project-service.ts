@@ -550,7 +550,7 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             id: `qemu-${architecture}`,
             name: architecture === 'x86_64' ? 'QEMU x64' : `QEMU ${architecture}`,
             kind: 'qemu', architecture,
-            qemu: { cpuCount: configuration?.qemuCpuCount ?? 4, memoryMiB: 512, machine: architecture === 'x86_64' ? 'q35' : 'virt', accelerator: 'tcg', display: 'sdl' }
+            qemu: { cpuCount: configuration?.qemuCpuCount ?? 4, memoryMiB: 512, machine: architecture === 'x86_64' ? 'q35' : 'virt', accelerator: configuration?.qemuAccelerator ?? 'auto', display: 'sdl' }
         };
         return { schemaVersion: 1, activeTargetId: target.id, targets: [target] };
     }
@@ -562,8 +562,9 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             const parsed = JSON.parse(await fs.readFile(this.targetFile(projectRoot), 'utf8')) as InuTargetState;
             if (parsed.schemaVersion !== 1 || !Array.isArray(parsed.targets) || parsed.targets.length === 0) return fallback;
             const configuredCpuCount = config.configuration?.qemuCpuCount ?? 4;
+            const configuredAccelerator = config.configuration?.qemuAccelerator ?? 'auto';
             const targets = parsed.targets.filter(item => item && item.schemaVersion === 1 && typeof item.id === 'string' && typeof item.name === 'string').map(item =>
-                item.kind === 'qemu' && item.qemu ? { ...item, qemu: { ...item.qemu, cpuCount: configuredCpuCount } } : item
+                item.kind === 'qemu' && item.qemu ? { ...item, qemu: { ...item.qemu, cpuCount: configuredCpuCount, accelerator: configuredAccelerator } } : item
             );
             if (targets.length === 0) return fallback;
             const activeTargetId = targets.some(item => item.id === parsed.activeTargetId) ? parsed.activeTargetId : targets[0].id;
@@ -576,14 +577,14 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
         }
     }
 
-    protected async syncConfiguredQemuCpuCount(projectRoot: string, configuration: InuProjectConfiguration): Promise<void> {
+    protected async syncConfiguredQemuSettings(projectRoot: string, configuration: InuProjectConfiguration): Promise<void> {
         const targetPath = this.targetFile(projectRoot);
         let state = this.defaultTargetState(configuration);
         try {
             const parsed = JSON.parse(await fs.readFile(targetPath, 'utf8')) as InuTargetState;
             if (parsed.schemaVersion === 1 && Array.isArray(parsed.targets) && parsed.targets.length > 0) {
                 const targets = parsed.targets.map(item => item.kind === 'qemu' && item.qemu
-                    ? { ...item, qemu: { ...item.qemu, cpuCount: configuration.qemuCpuCount } }
+                    ? { ...item, qemu: { ...item.qemu, cpuCount: configuration.qemuCpuCount, accelerator: configuration.qemuAccelerator } }
                     : item);
                 state = { schemaVersion: 1, activeTargetId: targets.some(item => item.id === parsed.activeTargetId) ? parsed.activeTargetId : targets[0].id, targets };
             }
@@ -601,6 +602,7 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             if (!target.qemu) return 'QEMU settings are required.';
             if (!Number.isInteger(target.qemu.cpuCount) || target.qemu.cpuCount < 1 || target.qemu.cpuCount > 256) return 'QEMU CPU count must be between 1 and 256.';
             if (!Number.isInteger(target.qemu.memoryMiB) || target.qemu.memoryMiB < 64 || target.qemu.memoryMiB > 1048576) return 'QEMU RAM must be between 64 MiB and 1 TiB.';
+            if (!['auto','whpx','kvm','hvf','tcg'].includes(target.qemu.accelerator)) return 'Unsupported QEMU accelerator.';
         }
         if (target.kind === 'physical') {
             if (!target.physical) return 'Physical debugger settings are required.';
@@ -1713,7 +1715,7 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
                     INU_TARGET_CPUS: String(activeTarget.qemu?.cpuCount ?? 1),
                     INU_TARGET_MEMORY_MIB: String(activeTarget.qemu?.memoryMiB ?? 512),
                     INU_TARGET_MACHINE: activeTarget.qemu?.machine ?? 'q35',
-                    INU_TARGET_ACCELERATOR: activeTarget.qemu?.accelerator ?? 'tcg',
+                    INU_TARGET_ACCELERATOR: activeTarget.qemu?.accelerator ?? 'auto',
                     INU_TARGET_DISPLAY: activeTarget.qemu?.display ?? 'sdl'
                 }
             });
@@ -3056,7 +3058,7 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             await fs.writeFile(path.join(projectRoot, 'Run.bat'), this.runBatch(authoritativeConfiguration), 'utf8'); advance();
             await fs.writeFile(path.join(projectRoot, 'README.md'), this.projectReadme(authoritativeConfiguration, generatedProjects), 'utf8'); advance();
             await fs.writeFile(path.join(projectRoot, 'PUBLIC-SDK-USAGE.md'), this.publicSdkUsageGuide(authoritativeConfiguration), 'utf8'); advance();
-            await this.syncConfiguredQemuCpuCount(projectRoot, authoritativeConfiguration); advance();
+            await this.syncConfiguredQemuSettings(projectRoot, authoritativeConfiguration); advance();
             this.projectGenerationPercent = 100;
             return { success: true, projectPath: projectRoot, generatedProjects: generatedProjects.map(project => project.id) };
         } catch (error) {
@@ -3108,7 +3110,7 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             await fs.writeFile(path.join(projectRoot, 'Run.bat'), this.runBatch(authoritativeConfiguration), 'utf8'); advance();
             await fs.writeFile(path.join(projectRoot, 'README.md'), this.projectReadme(authoritativeConfiguration, generatedProjects), 'utf8'); advance();
             await fs.writeFile(path.join(projectRoot, 'PUBLIC-SDK-USAGE.md'), this.publicSdkUsageGuide(authoritativeConfiguration), 'utf8'); advance();
-            await this.syncConfiguredQemuCpuCount(projectRoot, authoritativeConfiguration); advance();
+            await this.syncConfiguredQemuSettings(projectRoot, authoritativeConfiguration); advance();
             await this.osRegistry.registerProject(projectRoot); advance();
             this.projectGenerationPercent = 100;
             return { success: true, projectPath: projectRoot, generatedProjects: generatedProjects.map(project => project.id) };
