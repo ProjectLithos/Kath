@@ -1,10 +1,12 @@
 # Kath
 
+> Project roadmap: the repository-root [`TODO.md`](../TODO.md) is the **authoritative implementation backlog** for Kath & Inu. Planned compatibility work must be taken from and updated in that single file.
+
 **Kath is the graphical IDE for Kath&Inu: you describe the operating system you want, Kath assembles it from [Inu](../Inu/README.md)'s source components, and then lets you build, run, debug and inspect it, all in one place.**
 
 Kath is a Windows desktop application built on **Eclipse Theia** and **Electron**. It is a full code editor (Monaco, file explorer, terminal, search, tasks, debugging) with an operating-system composition and engineering layer added on top by the `kath` extension package.
 
-Current version: **0.0.94** (see `VERSION`)
+Current version: see `VERSION` (authoritative).
 
 ---
 
