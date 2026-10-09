@@ -3,7 +3,7 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { stage, hash, hashFiles, files, progress, runNpm } = require('./stage-cache.cjs');
+const { stage, hash, hashFiles, packageResolutionState, files, progress, runNpm } = require('./stage-cache.cjs');
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cache44-'));
 const src = path.join(dir, 'src'); fs.mkdirSync(src);
 const input = path.join(src, 'source.cs'), output = path.join(dir, 'lib', 'out.js');
@@ -39,6 +39,20 @@ fs.writeFileSync(packageFile, '{}'); fs.writeFileSync(nativeFile, 'native-v1'); 
 const dependencies = { name: 'dependencies', cacheRoot: spec.cacheRoot, inputs: [input], outputs: [packageFile, nativeFile], outputDigest: () => hash([packageFile]), action: () => { installs++; } };
 stage(dependencies); fs.writeFileSync(nativeFile, 'native-v2'); stage(dependencies); assert.equal(installs, 1);
 fs.writeFileSync(packageFile, '{"damaged":true}'); stage(dependencies); assert.equal(installs, 2);
+// Version-only package metadata changes must not invalidate the npm dependency graph.
+const workspacePackage = path.join(dir, 'workspace-package.json');
+fs.writeFileSync(workspacePackage, JSON.stringify({ name: '@kath/test', version: '1.0.0', scripts: { build: 'tsc' }, dependencies: { dep: '1.2.3' } }));
+const resolutionV1 = JSON.stringify(packageResolutionState([workspacePackage]));
+fs.writeFileSync(workspacePackage, JSON.stringify({ name: '@kath/test', version: '1.0.1', scripts: { build: 'tsc --pretty' }, dependencies: { dep: '1.2.3' } }));
+assert.equal(JSON.stringify(packageResolutionState([workspacePackage])), resolutionV1);
+fs.writeFileSync(workspacePackage, JSON.stringify({ name: '@kath/test', version: '1.0.1', dependencies: { dep: '1.2.4' } }));
+assert.notEqual(JSON.stringify(packageResolutionState([workspacePackage])), resolutionV1);
+// Custom input digests are authoritative for stages whose source files contain non-resolution metadata.
+let digestBuilds = 0, digestValue = 'same';
+const digestOutput = path.join(dir, 'digest.out');
+const digestStage = { name: 'digest-input', cacheRoot: spec.cacheRoot, inputs: [workspacePackage], outputs: [digestOutput], inputDigest: () => digestValue, action: () => { digestBuilds++; fs.writeFileSync(digestOutput, 'ok'); } };
+stage(digestStage); fs.writeFileSync(workspacePackage, '{"version":"2.0.0"}'); stage(digestStage); assert.equal(digestBuilds, 1);
+digestValue = 'changed'; stage(digestStage); assert.equal(digestBuilds, 2);
 // Windows paths remain individual arguments. Exercise all commands through
 // the real launcher function; mock only the child process, not its construction.
 const npmCli = path.join(dir, 'Node toolchain', 'node_modules', 'npm', 'bin', 'npm-cli.js');

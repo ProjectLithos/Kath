@@ -1530,6 +1530,25 @@ public static unsafe class Kernel
             .replace(anchor, "    // Get(system.device.inspect), Value0=index, output=8 UInt64 values (64 bytes).\n    // Returns 64, NotFound at the end, or NotImplemented when drivers are unselected.\n    private static Int64 DeviceInspectGet(KernelSystemCallFrame* frame)\n    {\n        if(frame==null||frame->NativeMessage.Value0>0xFFFFFFFFUL||frame->NativeMessage.OutputCapacity<64UL)return (Int64)KernelSystemCallError.InvalidArgument;\n#if INU_KERNELAREA_DRIVERS\n        if(!KernelDrivers.GetCapabilities().Initialized)return (Int64)KernelSystemCallError.NotImplemented;\n        if(!KernelDrivers.TryGetDeviceNodeByIndex((UInt32)frame->NativeMessage.Value0,out KernelDeviceNode node))return (Int64)KernelSystemCallError.NotFound;\n        UInt64* record=stackalloc UInt64[8];\n        record[0]=(UInt64)(Byte)node.Identifier.Bus;record[1]=node.Identifier.VendorId;record[2]=node.Identifier.DeviceId;record[3]=node.Identifier.ClassCode;\n        record[4]=(UInt64)(Byte)node.State;record[5]=node.Driver.Value;record[6]=(UInt64)(UInt32)node.Failure;record[7]=node.Handle.Value;\n        return KernelSystemCalls.TryCopyToUser(frame->NativeMessage.OutputAddress,(UInt64)(nuint)record,64UL)?64L:(Int64)KernelSystemCallError.Fault;\n#else\n        return (Int64)KernelSystemCallError.NotImplemented;\n#endif\n    }\n\n" + anchor);
     }
 
+    protected repairUserlandDirectoryReadAsciiLocals(source: string): string {
+        // 0.0.108 introduced the read-only asset-directory fallback with two locals named
+        // `ascii` in DirectoryReadGet. C# treats those nested/outer declarations as
+        // overlapping scopes (CS0136). Existing OS-owned dependency copies are preserved,
+        // so migrate only this exact shipped shape instead of overwriting coder changes.
+        const oldAsset = 'Byte* ascii=stackalloc Byte[(Int32)capacity];UInt32 pathOffset=assetSlot*PathCapacity;';
+        const newAsset = 'Byte* assetAscii=stackalloc Byte[(Int32)capacity];UInt32 pathOffset=assetSlot*PathCapacity;';
+        const oldAssetRead = 'TryGetDirectoryEntryAscii(paths+pathOffset,_assetDirectoryLengths[(Int32)assetSlot],_assetDirectoryIndices[(Int32)assetSlot],ascii,(UInt32)capacity,out UInt32 assetLength,out _)';
+        const newAssetRead = 'TryGetDirectoryEntryAscii(paths+pathOffset,_assetDirectoryLengths[(Int32)assetSlot],_assetDirectoryIndices[(Int32)assetSlot],assetAscii,(UInt32)capacity,out UInt32 assetLength,out _)';
+        const oldAssetCopy = 'TryCopyToUser(frame->NativeMessage.OutputAddress,(UInt64)(nuint)ascii,assetLength)';
+        const newAssetCopy = 'TryCopyToUser(frame->NativeMessage.OutputAddress,(UInt64)(nuint)assetAscii,assetLength)';
+        const oldVfs = 'Byte* ascii=stackalloc Byte[(Int32)capacity];for(UInt32 i=0U;i<length;i++){Char c=name[i];if(c>0x7F)return (Int64)KernelSystemCallError.Fault;ascii[i]=(Byte)c;}';
+        const newVfs = 'Byte* vfsAscii=stackalloc Byte[(Int32)capacity];for(UInt32 i=0U;i<length;i++){Char c=name[i];if(c>0x7F)return (Int64)KernelSystemCallError.Fault;vfsAscii[i]=(Byte)c;}';
+        const oldVfsCopy = 'TryCopyToUser(frame->NativeMessage.OutputAddress,(UInt64)(nuint)ascii,length)';
+        const newVfsCopy = 'TryCopyToUser(frame->NativeMessage.OutputAddress,(UInt64)(nuint)vfsAscii,length)';
+        return source.replace(oldAsset,newAsset).replace(oldAssetRead,newAssetRead).replace(oldAssetCopy,newAssetCopy)
+            .replace(oldVfs,newVfs).replace(oldVfsCopy,newVfsCopy);
+    }
+
     protected repairKnownKernelSource(canonical: string, source: string): string {
         if (canonical === 'src/Inu.Kernel.Console/FramebufferConsole.TextEditing.cs') {
             // Match the shipped writer exactly; preserve custom writer implementations.
@@ -1541,8 +1560,8 @@ public static unsafe class Kernel
             return this.repairPortableExecutableHeaders(source);
         }
         if (canonical === 'src/Inu.Kernel.Bootstrap/UserlandRuntimeStartup.cs') {
-            return this.repairDeviceInventoryBridge(this.repairRing3InteractiveReadiness(this.repairUserlandRuntimeBufferLengths(source)
-                .replace(/\bKernelConsole\.Clear\(\)/g, 'KernelConsole.ClearScreen()')));
+            return this.repairDeviceInventoryBridge(this.repairRing3InteractiveReadiness(this.repairUserlandDirectoryReadAsciiLocals(
+                this.repairUserlandRuntimeBufferLengths(source).replace(/\bKernelConsole\.Clear\(\)/g, 'KernelConsole.ClearScreen()'))));
         }
         if (canonical === 'src/Inu.Kernel.Processes/KernelProcessRecordStore.cs'
             || canonical === 'src/Inu.Kernel.Processes/KernelProcesses.Foreground.cs') {

@@ -53,11 +53,24 @@ function hashFiles(selected, paths, values = [], report = () => {}) {
 function hash(paths, values = [], outputs = false, report = () => {}) {
     return hashFiles(files(paths, outputs, report), paths, values, report);
 }
-function stage({ name, cacheRoot, inputs, outputs, args = [], force = false, outputDigest, action }) {
+function packageResolutionState(packageFiles) {
+    const fields = ['name','workspaces','engines','packageManager','dependencies','devDependencies','optionalDependencies','peerDependencies','peerDependenciesMeta','overrides','bundleDependencies','bundledDependencies'];
+    return packageFiles.map(file => {
+        const value = JSON.parse(fs.readFileSync(file, 'utf8'));
+        const selected = { file: path.resolve(file) };
+        for (const field of fields) if (value[field] !== undefined) selected[field] = value[field];
+        // Lifecycle hooks can affect the installed tree; ordinary build/start scripts cannot.
+        const lifecycle = {};
+        for (const field of ['preinstall','install','postinstall','prepare']) if (value.scripts?.[field] !== undefined) lifecycle[field] = value.scripts[field];
+        if (Object.keys(lifecycle).length) selected.lifecycle = lifecycle;
+        return selected;
+    });
+}
+function stage({ name, cacheRoot, inputs, outputs, args = [], force = false, inputDigest, outputDigest, action }) {
     const cacheFile = path.join(cacheRoot, hash([], [name, outputs]) + '.json');
     console.log(`[INFO] ${name}: checking cache inputs...`);
     const report = progress(`${name} cache check`);
-    const inputHash = hash(inputs, [name, args], false, report);
+    const inputHash = inputDigest ? inputDigest(report) : hash(inputs, [name, args], false, report);
     const digest = () => outputDigest ? outputDigest(report) : hash(outputs, [], true, report);
     const ready = outputs.length && outputs.every(p => fs.existsSync(p) && files([p], true, report).length);
     let cache;
@@ -69,7 +82,7 @@ function stage({ name, cacheRoot, inputs, outputs, args = [], force = false, out
     console.log(`[INFO] ${name}...`); action();
     console.log(`[ OK ] ${name}: command completed; verifying outputs and saving cache...`);
     if (!outputs.every(p => fs.existsSync(p) && files([p], true, report).length)) throw new Error(`${name} did not produce its required outputs.`);
-    if (hash(inputs, [name, args], false, report) !== inputHash) { console.log(`[INFO] ${name}: inputs changed; cache not saved.`); return; }
+    if ((inputDigest ? inputDigest(report) : hash(inputs, [name, args], false, report)) !== inputHash) { console.log(`[INFO] ${name}: inputs changed; cache not saved.`); return; }
     fs.mkdirSync(cacheRoot, { recursive: true });
     const temp = cacheFile + '.' + crypto.randomUUID() + '.tmp';
     try { fs.writeFileSync(temp, JSON.stringify({ schema: 1, inputs: inputHash, outputs: digest() })); fs.renameSync(temp, cacheFile); }
@@ -114,10 +127,15 @@ function build(root, force) {
     // of thousands of files and made an unchanged Kath build spend minutes just
     // proving that npm had already completed.
     const dependencyDigest = report => hash(dependencies, [], true, report);
+    const dependencyDefinitionFiles = [path.join(root, 'JSON', 'package.json'), path.join(extension, 'package.json'), path.join(electron, 'package.json')];
+    const dependencyInfrastructure = [...common, path.join(root, 'Scripts', 'Install-KathToolchain.ps1')];
+    const dependencyInputDigest = report => hash(dependencyInfrastructure,
+        ['Kath npm dependencies', ['install','--include=dev','--workspaces'], packageResolutionState(dependencyDefinitionFiles)], false, report);
     stage({
         name: 'Kath npm dependencies',
         cacheRoot,
-        inputs: [...common, ...packageInputs, path.join(root, 'Scripts', 'Install-KathToolchain.ps1')],
+        inputs: [...dependencyInfrastructure, ...dependencyDefinitionFiles],
+        inputDigest: dependencyInputDigest,
         outputs: dependencies,
         outputDigest: dependencyDigest,
         force,
@@ -153,7 +171,7 @@ function build(root, force) {
     stage({ name: 'Kath extension', cacheRoot, inputs: [...common, ...packageInputs, dependencyMarker, nativeMarker, path.join(extension, 'src'), path.join(extension, 'tsconfig.json'), path.join(root, 'CJS', 'extension-files.cjs')], outputs: [path.join(extension, 'lib')], force, args: ['run', 'build', '--workspace', '@kath/extension'], action: () => invoke(['run', 'build', '--workspace', '@kath/extension']) });
     stage({ name: 'Kath Electron frontend', cacheRoot, inputs: [...common, ...packageInputs, dependencyMarker, nativeMarker, ...files([path.join(extension, 'lib')], true), electron], outputs: [path.join(electron, 'lib'), path.join(electron, 'src-gen')], force, args: ['run', 'build:frontend', '--workspace', '@kath/electron'], action: () => invoke(['run', 'build:frontend', '--workspace', '@kath/electron']) });
 }
-module.exports = { files, hash, hashFiles, progress, stage, runNpm };
+module.exports = { files, hash, hashFiles, packageResolutionState, progress, stage, runNpm };
 if (require.main === module) {
     try { build(path.resolve(process.argv[2]), process.argv.includes('--force')); }
     catch (e) { console.error(`[FAIL] ${e.message}`); process.exitCode = 1; }
