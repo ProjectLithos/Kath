@@ -45,6 +45,11 @@ export namespace InuCommands {
         label: 'Reconfigure Inu OS'
     };
 
+    export const REFRESH: Command = {
+        id: 'inu.refreshOperatingSystem',
+        label: 'Refresh'
+    };
+
     export const RECONFIGURE_ROOT_CONTEXT: Command = {
         id: 'inu.reconfigureOperatingSystem.rootContext',
         label: 'Reconfigure Inu OS'
@@ -163,6 +168,12 @@ export class InuContribution extends AbstractViewContribution<InuWidget>
             isVisible: () => !!this.currentOperatingSystemPath()
         });
 
+        commands.registerCommand(InuCommands.REFRESH, {
+            execute: () => this.refreshCurrentOperatingSystem(true),
+            isEnabled: () => !!this.currentOperatingSystemPath(),
+            isVisible: () => !!this.currentOperatingSystemPath()
+        });
+
         commands.registerCommand(InuCommands.RECONFIGURE_ROOT_CONTEXT, {
             execute: () => this.reconfigureCurrentOperatingSystem(),
             isEnabled: () => this.isOperatingSystemRootSelected(),
@@ -262,8 +273,14 @@ export class InuContribution extends AbstractViewContribution<InuWidget>
         menus.registerSubmenu(inuMenu, 'Inu', { sortString: '8' });
         menus.registerSubmenu([...inuMenu, '2_engineering'], 'Engineering');
         menus.registerMenuAction([...inuMenu, '1_configuration'], {
+            commandId: InuCommands.REFRESH.id,
+            label: 'Refresh',
+            order: '0'
+        });
+        menus.registerMenuAction([...inuMenu, '1_configuration'], {
             commandId: InuCommands.RECONFIGURE.id,
-            label: 'Reconfigure OS'
+            label: 'Reconfigure OS',
+            order: '1'
         });
         menus.registerSubmenu([...inuMenu, '0_architecture'], 'Architecture');
         menus.registerMenuAction([...inuMenu, '0_architecture'], { commandId: InuCommands.ARCHITECTURE.id, label: 'OS Architecture', order: '0' });
@@ -558,6 +575,24 @@ export class InuContribution extends AbstractViewContribution<InuWidget>
             return false;
         }
         return projectPath.toLowerCase() === selectedPath.toLowerCase();
+    }
+
+    protected async refreshCurrentOperatingSystem(showSuccess: boolean): Promise<boolean> {
+        const projectPath = this.currentOperatingSystemPath();
+        if (!projectPath) {
+            if (showSuccess) await this.messageService.warn('Open an Inu operating system first.');
+            return false;
+        }
+        await this.shell.saveAll();
+        const result = await this.projectService.refreshOperatingSystem(projectPath);
+        if (!result.success) {
+            await this.messageService.error(result.error ?? 'Could not refresh Inu OS dependencies.');
+            return false;
+        }
+        this.toolbarWidget.refresh();
+        this.staticAnalyzerWidget.setProjectPath(projectPath);
+        if (showSuccess) await this.messageService.info('Inu OS dependencies refreshed. Coder-owned source was preserved.');
+        return true;
     }
 
     protected async reconfigureCurrentOperatingSystem(): Promise<void> {

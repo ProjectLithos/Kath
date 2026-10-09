@@ -1007,6 +1007,7 @@ export interface InuProjectService {
     readProjectConfiguration(projectPath: string): Promise<InuConfigurationResult>;
     inspectDeviceTree(projectPath: string): Promise<InuDeviceTreeSnapshot>;
     reconfigureProject(projectPath: string, configuration: InuProjectConfiguration): Promise<InuProjectResult>;
+    refreshOperatingSystem(projectPath: string): Promise<InuProjectResult>;
     runOperatingSystem(projectPath: string, mode: InuRunMode, breakpoints?: InuBreakpointRequest[], exceptionBreakpoints?: InuExceptionBreakpointSettings): Promise<InuRunResult>;
     stopOperatingSystem(sessionId: string): Promise<InuRunResult>;
     readRunOutput(sessionId: string, offset: number): Promise<InuRunOutput>;

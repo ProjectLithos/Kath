@@ -365,6 +365,11 @@ export class InuWidget extends BaseWidget {
     }
 
     protected async openOperatingSystem(os: InuOperatingSystem): Promise<void> {
+        const refreshed = await this.projectService.refreshOperatingSystem(os.path);
+        if (!refreshed.success) {
+            await this.messages.error(`Could not refresh ${os.name} before opening: ${refreshed.error ?? 'Unknown error'}`);
+            return;
+        }
         window.sessionStorage.setItem(INU_EXPLICIT_WORKSPACE_OPEN, os.uri);
         await this.workspaceService.open(new URI(os.uri), { preserveWindow: true });
     }

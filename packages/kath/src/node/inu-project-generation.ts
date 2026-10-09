@@ -788,6 +788,23 @@ public static class Gui
         await this.copyManagedSourceFilesWithoutOverwriting(settingsSource, settingsDestination);
     }
 
+    protected async repairMalformedStockShellBackslashLiteral(projectRoot: string, configuration: InuProjectConfiguration): Promise<void> {
+        if (!(configuration.startupModel === 'cli' || configuration.startupModel === 'cli-gui')) return;
+        const shellPath = path.join(projectRoot, 'Userland', this.safeSegment(configuration.name), 'Shell.cs');
+        let source: string;
+        try { source = await fs.readFile(shellPath, 'utf8'); } catch { return; }
+        if (!source.includes('Coder-owned shell behaviour. Configure runs once')) return;
+
+        // A single backslash cannot appear literally inside a C# character literal. This was
+        // emitted/preserved by older stock shell configuration examples as '\' and produces
+        // CS1010/CS1012. Repair only this exact malformed stock literal; custom shell logic is
+        // otherwise left untouched.
+        const malformed = "'\\'";
+        const valid = "'\\\\'";
+        if (!source.includes(malformed)) return;
+        await fs.writeFile(shellPath, source.split(malformed).join(valid), 'utf8');
+    }
+
     protected async removeUnusedOptionalRoots(projectRoot: string): Promise<void> {
         // Boot, Kernel and Userland are permanent execution partitions in Kath&Inu.
         // Older top-level feature roots are removed only when empty.

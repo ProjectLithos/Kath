@@ -1660,6 +1660,18 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
 
 
 
+    async refreshOperatingSystem(projectPath: string): Promise<InuProjectResult> {
+        try {
+            const projectRoot = this.requireOperatingSystemRoot(projectPath);
+            await fs.access(path.join(projectRoot, 'Inu.json'));
+            await this.refreshAuthoritativeRuntimeConfiguration(projectRoot);
+            await this.refreshSdkBridge(projectRoot);
+            return { success: true, projectPath: projectRoot };
+        } catch (error) {
+            return { success: false, error: error instanceof Error ? error.message : String(error) };
+        }
+    }
+
     async runOperatingSystem(projectPath: string, mode: InuRunMode, breakpoints: InuBreakpointRequest[] = [], exceptionBreakpoints: InuExceptionBreakpointSettings = { vectors: [0, 6, 8, 12, 13, 14, 18], breakOnPanic: true, nmiOptIn: false }): Promise<InuRunResult> {
         try {
             const projectRoot = this.requireOperatingSystemRoot(projectPath);
@@ -3234,27 +3246,43 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
         const configurationPath = path.join(projectRoot, 'Inu.json');
         const parsed = JSON.parse(await fs.readFile(configurationPath, 'utf8')) as InuProjectConfiguration;
         const configuration = this.copyConfiguration(parsed);
+        const previousProjects = await this.readGeneratedProjectGraph(projectRoot);
+        const projects = this.buildProjectGraph(configuration);
+
+        await this.removeObsoleteGeneratedProjects(projectRoot, previousProjects, projects, configuration.name);
         await this.createBaseDirectories(projectRoot, configuration);
+        await fs.rm(path.join(projectRoot, 'Inu.slnx'), { force: true });
+
         await fs.writeFile(configurationPath, this.configurationJson(configuration), 'utf8');
         await fs.writeFile(path.join(projectRoot, 'Inu.Configuration.json'), this.sdkConfigurationJson(configuration), 'utf8');
         await fs.writeFile(path.join(projectRoot, 'Inu.Configuration.props'), this.sdkConfigurationProps(configuration), 'utf8');
         await fs.writeFile(path.join(projectRoot, 'Inu.Configuration.targets'), this.sdkConfigurationTargets(configuration), 'utf8');
         await fs.writeFile(path.join(projectRoot, 'InuProject.json'), this.sdkProjectManifest(configuration), 'utf8');
-        await fs.writeFile(path.join(projectRoot, 'Build.bat'), this.buildBatch(), 'utf8');
-        await fs.writeFile(path.join(projectRoot, 'Run.bat'), this.runBatch(configuration), 'utf8');
+        await fs.writeFile(path.join(projectRoot, 'Inu.ProjectGraph.json'), this.projectGraphJson(configuration, projects), 'utf8');
 
-        // Refresh Kath&Inu-owned mechanisms only. OS-named folders are coder-owned and are
-        // created only when missing; they are never silently rewritten on open/run.
-        const projects = this.buildProjectGraph(configuration);
+        const managedKernelProjectTemplate = path.join(INU_SDK_ROOT, 'templates', 'InuKernel', 'InuKernel.csproj');
+        await fs.copyFile(managedKernelProjectTemplate, path.join(projectRoot, 'InuKernel.csproj'));
+
+        // Refresh only Kath/Inu-owned/generated project structure. Source that the coder owns
+        // remains protected because the materializers only create missing coder-owned files.
         for (const generated of projects) await this.writeGeneratedProject(projectRoot, configuration, generated);
         await this.materializeSelectedManagedSdkSource(projectRoot, configuration);
         await this.materializeSelectedUserlandSource(projectRoot, configuration);
+
         await fs.mkdir(path.join(projectRoot, 'Kernel', 'Provided', 'Configuration'), { recursive: true });
         await fs.writeFile(path.join(projectRoot, 'Kernel', 'Provided', 'Configuration', 'GeneratedConfiguration.cs'), this.generatedConfigurationSource(configuration), 'utf8');
         await fs.mkdir(path.join(projectRoot, 'Kernel', 'Provided', 'Core'), { recursive: true });
         await fs.writeFile(path.join(projectRoot, 'Kernel', 'Provided', 'Core', 'KernelRuntime.cs'), this.kernelSource(configuration), 'utf8');
+
         await this.materializeCoderOwnedSource(projectRoot, configuration);
+        await this.repairMalformedStockShellBackslashLiteral(projectRoot, configuration);
         await this.removeUnusedOptionalRoots(projectRoot);
+
+        await fs.writeFile(path.join(projectRoot, 'Build.bat'), this.buildBatch(), 'utf8');
+        await fs.writeFile(path.join(projectRoot, 'Run.bat'), this.runBatch(configuration), 'utf8');
+        await fs.writeFile(path.join(projectRoot, 'README.md'), this.projectReadme(configuration, projects), 'utf8');
+        await fs.writeFile(path.join(projectRoot, 'PUBLIC-SDK-USAGE.md'), this.publicSdkUsageGuide(configuration), 'utf8');
+        await this.syncConfiguredQemuSettings(projectRoot, configuration);
     }
 
     async listDiskImages(projectPath: string): Promise<InuDiskImageDescriptor[]> {
