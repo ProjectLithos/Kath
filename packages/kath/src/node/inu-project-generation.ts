@@ -1575,6 +1575,11 @@ public static unsafe class Kernel
     protected async materializeKernelSourcePlan(projectRoot: string, configuration: InuProjectConfiguration): Promise<void> {
         const sourceRoot = path.join(INU_SDK_ROOT, 'src');
         const projects = this.buildProjectGraph(configuration);
+        // SDK implementation source has one authoritative home: Inu/SDK/src.
+        // Legacy generated copies under Kernel/Provided are removed on refresh;
+        // unowned support dependencies are linked directly from the central SDK source.
+        await fs.rm(path.join(projectRoot, 'Kernel', 'Provided', 'Dependencies'), { recursive: true, force: true });
+        await fs.rm(path.join(projectRoot, 'Kernel', 'Provided', 'SDK'), { recursive: true, force: true });
         const owners = new Map<string, string>();
         const required = new Set<string>([
             'Inu.Kernel.Entry.X64', 'Inu.Kernel.Console', 'Inu.Kernel.Architecture',
@@ -1609,7 +1614,7 @@ public static unsafe class Kernel
             required.add('Inu.Usb.MassStorage');
         }
         const queue = Array.from(required);
-        const inventory: Array<{ source: string; destination: string; project: string }> = [];
+        const inventory: Array<{ source: string; destination: string; project: string; central: boolean }> = [];
         const copied = new Set<string>();
         const listSource = async (directory: string): Promise<string[]> => {
             const files: string[] = [];
@@ -1636,8 +1641,9 @@ public static unsafe class Kernel
                 const dependency = this.sdkProjectNameFromInclude(match[1], directory);
                 if (dependency && !required.has(dependency)) { required.add(dependency); queue.push(dependency); }
             }
-            const destinationRoot = owners.get(name)
-                ? path.join(projectRoot, ...owners.get(name)!.split('/'), name)
+            const ownerPath = owners.get(name);
+            const destinationRoot = ownerPath
+                ? path.join(projectRoot, ...ownerPath.split('/'), name)
                 : path.join(projectRoot, 'Kernel', 'Provided', 'Dependencies', name);
             const compileFiles = name === 'Inu.Kernel.Bootstrap'
                 ? ['UserlandRuntimeStartup.cs', 'KernelTelemetryTransport.cs'].map(file => path.join(directory, file))
@@ -1655,128 +1661,41 @@ public static unsafe class Kernel
                 copied.add(canonical.toLowerCase());
                 const relativeSource = path.relative(directory, source);
                 const destination = path.join(destinationRoot, relativeSource.startsWith('..') ? path.basename(source) : relativeSource);
-                await fs.mkdir(path.dirname(destination), { recursive: true });
-                try { await fs.access(destination); } catch { await fs.copyFile(source, destination); }
-                if (canonical === 'src/Inu.Kernel.Bootstrap/UserlandRuntimeStartup.cs'
-                    || canonical === 'src/Inu.Kernel.Console/FramebufferConsole.TextEditing.cs'
-                    || canonical === 'src/Inu.Kernel.Processes/ProcessExecutableMath.cs'
-                    || canonical === 'src/Inu.Kernel.Processes/KernelProcessRecordStore.cs'
-                    || canonical === 'src/Inu.Kernel.Processes/KernelProcesses.Foreground.cs') {
-                    const current = await fs.readFile(destination, 'utf8');
-                    const repaired = this.repairKnownKernelSource(canonical, current);
-                    if (repaired !== current) await fs.writeFile(destination, repaired, 'utf8');
+                if (ownerPath) {
+                    // Selected architectural components become OS-owned source exactly once.
+                    await fs.mkdir(path.dirname(destination), { recursive: true });
+                    try { await fs.access(destination); } catch { await fs.copyFile(source, destination); }
+                    inventory.push({ source: canonical, destination: path.relative(projectRoot, destination).replace(/\\/g, '/'), project: name, central: false });
+                } else {
+                    // Build-only support dependencies stay authoritative in Inu/SDK/src and are
+                    // linked into the project virtually. No second physical source copy exists.
+                    inventory.push({ source: canonical, destination: path.relative(projectRoot, destination).replace(/\\/g, '/'), project: name, central: true });
                 }
-                inventory.push({ source: canonical, destination: path.relative(projectRoot, destination).replace(/\\/g, '/'), project: name });
             }
         }
         const xml = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         // The template no longer wildcard-compiles Provided feature trees. Old duplicate
         // files may remain editable on disk, but only this canonical inventory is compiled.
         const targets = ['<Project>', '  <ItemGroup>',
-            ...inventory.map(item => `    <Compile Include="$(MSBuildThisFileDirectory)${xml(item.destination)}" />`),
+            ...inventory.map(item => item.central
+                ? `    <Compile Include="$(InuSdkRoot)\\${xml(item.source.replace(/\//g, '\\'))}" Link="${xml(item.destination)}" />`
+                : `    <Compile Include="$(MSBuildThisFileDirectory)${xml(item.destination)}" />`),
             '  </ItemGroup>', '</Project>', ''].join('\n');
         await fs.writeFile(path.join(projectRoot, 'Inu.KernelSources.targets'), targets, 'utf8');
         await fs.writeFile(path.join(projectRoot, 'Inu.KernelSources.json'), JSON.stringify({
             schemaVersion: 1, files: inventory,
             dependencyProjects: Array.from(required).sort(),
-            note: 'Canonical freestanding kernel compilation dependencies. Source is OS-owned; provider activation follows Inu.Configuration.props.'
+            note: 'Selected architectural source is OS-owned. Unselected build-only support source is linked from the single authoritative Inu/SDK/src tree; no duplicate physical copies are generated.'
         }, null, 2) + '\n', 'utf8');
     }
 
     protected async materializeSelectedManagedSdkSource(projectRoot: string, configuration: InuProjectConfiguration): Promise<void> {
-        const sdkSourceRoot = path.join(INU_SDK_ROOT, 'src');
-        const localSdkRoot = path.join(projectRoot, 'Kernel', 'Provided', 'SDK');
-        const localSourceRoot = path.join(localSdkRoot, 'src');
-        await fs.mkdir(localSourceRoot, { recursive: true });
-
-        for (const supportFile of ['Directory.Build.props', 'Directory.Build.targets']) {
-            const source = path.join(INU_SDK_ROOT, supportFile);
-            const destination = path.join(localSdkRoot, supportFile);
-            try { await fs.access(destination); } catch { await fs.copyFile(source, destination); }
-        }
-
-        // Only irreducible freestanding/runtime substrate and cross-process dependency projects
-        // live under System/SDK/src. Selected OS features themselves are real source in the
-        // architecture tree and are never duplicated here.
-        const selected = new Set<string>([
-            'Inu.Freestanding.CoreLib',
-            'Inu.Kernel.Architecture',
-            'Inu.Arch.X64',
-            'Inu.Kernel.X64.LowLevel',
-            'Inu.String',
-            'Inu.Kernel.SubsystemContracts',
-            'Inu.Kernel.Power',
-            'Inu.ApplicationFormat',
-            'Inu.Runtime.NativeAot',
-            'Inu.Runtime.Conformance',
-            // Console rendering is required by the generated x64 UEFI environment. Keep the
-            // renderer source visible in the OS under Kernel/Provided/SDK/src.
-            'Inu.Kernel.Console',
-            'Inu.Kernel.TrueType',
-            'Inu.Console.Framebuffer'
-        ]);
-
+        // 0.0.111: there is no generated SDK/src mirror. The central Inu SDK is the single
+        // authoritative source for compiler/runtime substrate. Selected architectural
+        // components are materialised once into their OS-owned architecture locations by
+        // materializeKernelSourcePlan(); build-only support source is linked centrally.
+        await fs.rm(path.join(projectRoot, 'Kernel', 'Provided', 'SDK'), { recursive: true, force: true });
         await this.materializeKernelSourcePlan(projectRoot, configuration);
-
-        const referencePattern = /<ProjectReference\s+Include="([^"]+)"(?:\s+Condition="([^"]+)")?\s*\/>/g;
-        const projects = this.buildProjectGraph(configuration);
-        for (const generated of projects) {
-            if (generated.kind === 'kernel' || generated.kind === 'kernel-module') continue;
-            const implementations = new Set(this.managedSdkProjectsForGeneratedProject(generated));
-            for (const implementationProject of implementations) {
-                const projectDirectory = path.join(sdkSourceRoot, implementationProject);
-                let projectFiles: string[] = [];
-                try { projectFiles = (await fs.readdir(projectDirectory)).filter(name => name.endsWith('.csproj')); } catch { continue; }
-                for (const projectFile of projectFiles) {
-                    const text = await fs.readFile(path.join(projectDirectory, projectFile), 'utf8');
-                    for (const match of text.matchAll(referencePattern)) {
-                        const dependency = this.sdkProjectNameFromInclude(match[1], projectDirectory);
-                        if (dependency && !implementations.has(dependency)) selected.add(dependency);
-                    }
-                }
-            }
-        }
-
-        const queue = Array.from(selected);
-        for (let index = 0; index < queue.length; index++) {
-            const projectName = queue[index];
-            const projectDirectory = path.join(sdkSourceRoot, projectName);
-            let projectFiles: string[];
-            try {
-                projectFiles = (await fs.readdir(projectDirectory)).filter(name => name.endsWith('.csproj'));
-            } catch {
-                throw new Error(`Required Inu substrate source project is missing: ${projectName}`);
-            }
-            for (const projectFile of projectFiles) {
-                const text = await fs.readFile(path.join(projectDirectory, projectFile), 'utf8');
-                for (const match of text.matchAll(referencePattern)) {
-                    const dependency = this.sdkProjectNameFromInclude(match[1], projectDirectory);
-                    if (dependency && !selected.has(dependency)) {
-                        selected.add(dependency);
-                        queue.push(dependency);
-                    }
-                }
-            }
-        }
-
-        for (const projectName of Array.from(selected).sort((a, b) => a.localeCompare(b))) {
-            await this.copySdkSourceWithoutOverwriting(
-                path.join(sdkSourceRoot, projectName),
-                path.join(localSourceRoot, projectName)
-            );
-        }
-
-        const inventory = [
-            '# Inu freestanding/runtime substrate',
-            '',
-            'Selected OS features are not copied here. Their exact source files live in the OS architecture tree.',
-            'This directory contains only compiler/runtime substrate and dependencies needed by separately compiled processes.',
-            'Kath copies missing source only; it does not overwrite OS-owned edits.',
-            '',
-            ...Array.from(selected).sort((a, b) => a.localeCompare(b)).map(name => `- src/${name}`),
-            ''
-        ].join('\n');
-        await fs.writeFile(path.join(localSdkRoot, 'SELECTED-SOURCE.md'), inventory, 'utf8');
     }
 
     protected sdkToolchainBootstrapLines(): string[] {
