@@ -41,6 +41,7 @@ export class InuEditorEnvironmentContribution implements FrontendApplicationCont
     protected readonly sdkEditorDisposables = new Map<string, monaco.IDisposable[]>();
     protected readonly sdkSyncTimers = new Map<string, number>();
     protected readonly sdkApplyingImports = new Set<string>();
+    protected readonly csharpSlashDecorations = new Map<string, string[]>();
 
     async onStart(): Promise<void> {
         this.installCSharpSyntaxHighlighting();
@@ -221,6 +222,7 @@ export class InuEditorEnvironmentContribution implements FrontendApplicationCont
         const control = editor.getControl();
         const key = sourcePath.toLowerCase();
         const change = control.onDidChangeModelContent(() => {
+            this.updateCSharpSlashDiagnostics(editor);
             if (this.sdkApplyingImports.has(key)) return;
             const existing = this.sdkSyncTimers.get(key);
             if (existing !== undefined) window.clearTimeout(existing);
@@ -233,9 +235,49 @@ export class InuEditorEnvironmentContribution implements FrontendApplicationCont
             const entries = this.sdkEditorDisposables.get(key) ?? [];
             for (const item of entries) if (item !== dispose) item.dispose();
             this.sdkEditorDisposables.delete(key);
+            this.csharpSlashDecorations.delete(key);
         });
         this.sdkEditorDisposables.set(key, [change, dispose]);
+        this.updateCSharpSlashDiagnostics(editor);
         void this.synchronizeSdkReferences(editor);
+    }
+
+
+    protected updateCSharpSlashDiagnostics(editor: MonacoEditor): void {
+        const sourcePath = editor.uri.path.fsPath();
+        if (!sourcePath.toLowerCase().endsWith('.cs')) return;
+        const control = editor.getControl();
+        const model = control.getModel();
+        if (!model) return;
+        const owner = 'kath-csharp-syntax';
+        const markers: monaco.editor.IMarkerData[] = [];
+        const decorations: monaco.editor.IModelDeltaDecoration[] = [];
+        for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber++) {
+            const text = model.getLineContent(lineNumber);
+            const first = text.search(/\S/);
+            if (first < 0 || text[first] !== '/') continue;
+            const next = text[first + 1] ?? '';
+            // A slash at the start of a C# statement is almost always a mistyped
+            // comment opener. Do not flag valid //, /* or /= tokens, and do not
+            // flag division operators that occur after another token on the line.
+            if (next === '/' || next === '*' || next === '=') continue;
+            markers.push({
+                severity: monaco.MarkerSeverity.Error,
+                message: "Unexpected '/'. Use '//' for a single-line comment or '/* ... */' for a block comment.",
+                startLineNumber: lineNumber,
+                startColumn: first + 1,
+                endLineNumber: lineNumber,
+                endColumn: Math.min(text.length + 1, first + 2)
+            });
+            decorations.push({
+                range: new monaco.Range(lineNumber, 1, lineNumber, Math.max(1, text.length + 1)),
+                options: { isWholeLine: true, className: 'inu-csharp-error-line', overviewRuler: { color: '#d13438', position: monaco.editor.OverviewRulerLane.Right } }
+            });
+        }
+        monaco.editor.setModelMarkers(model, owner, markers);
+        const key = sourcePath.toLowerCase();
+        const old = this.csharpSlashDecorations.get(key) ?? [];
+        this.csharpSlashDecorations.set(key, control.deltaDecorations(old, decorations));
     }
 
     protected async synchronizeSdkReferences(editor: MonacoEditor): Promise<void> {
