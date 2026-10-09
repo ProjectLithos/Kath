@@ -974,7 +974,27 @@ export interface InuDiskReadResult {
     error?: string;
 }
 
+
+export interface InuSdkReferenceSymbol {
+    name: string;
+    namespace: string;
+    project: string;
+    assembly: string;
+}
+
+export interface InuSdkReferenceSyncResult {
+    success: boolean;
+    projectFile?: string;
+    references: string[];
+    namespaces: string[];
+    ambiguous: string[];
+    error?: string;
+}
+
 export interface InuProjectService {
+    listSdkReferenceSymbols(prefix?: string): Promise<InuSdkReferenceSymbol[]>;
+    synchronizeSdkReferences(sourcePath: string, sourceText: string): Promise<InuSdkReferenceSyncResult>;
+    materializeSdkLibraryForSymbol(sourcePath: string, symbolName: string): Promise<InuProjectResult>;
     getSdkApiSiteUrl(): Promise<string>;
     listOperatingSystems(): Promise<InuOperatingSystem[]>;
     getDefaultOperatingSystemLocation(): Promise<string>;

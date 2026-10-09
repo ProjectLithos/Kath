@@ -7,6 +7,7 @@ import { MonacoEditor } from '@theia/monaco/lib/browser/monaco-editor';
 import * as monaco from '@theia/monaco-editor-core';
 import { OutputChannelManager } from '@theia/output/lib/browser/output-channel';
 import { InuBreakpointManager } from './inu-breakpoint-manager';
+import { InuProjectService } from '../common/inu-protocol';
 
 /**
  * Keeps Kath aligned with the operating-system colour scheme and
@@ -30,12 +31,20 @@ export class InuEditorEnvironmentContribution implements FrontendApplicationCont
     @inject(OutputChannelManager)
     protected readonly outputChannelManager!: OutputChannelManager;
 
+    @inject(InuProjectService)
+    protected readonly projectService!: InuProjectService;
+
     protected systemThemeQuery: MediaQueryList | undefined;
     protected systemThemeChangeListener: ((event: MediaQueryListEvent) => void) | undefined;
     protected documentContextMenuListener: ((event: MouseEvent) => void) | undefined;
+    protected sdkCompletionProvider: monaco.IDisposable | undefined;
+    protected readonly sdkEditorDisposables = new Map<string, monaco.IDisposable[]>();
+    protected readonly sdkSyncTimers = new Map<string, number>();
+    protected readonly sdkApplyingImports = new Set<string>();
 
     async onStart(): Promise<void> {
         this.installCSharpSyntaxHighlighting();
+        this.installSdkReferenceIntelligence();
 
         await this.preferences.ready;
         await this.themeService.initialized;
@@ -71,6 +80,12 @@ export class InuEditorEnvironmentContribution implements FrontendApplicationCont
             document.removeEventListener('contextmenu', this.documentContextMenuListener, true);
             this.documentContextMenuListener = undefined;
         }
+        this.sdkCompletionProvider?.dispose();
+        this.sdkCompletionProvider = undefined;
+        for (const disposables of this.sdkEditorDisposables.values()) for (const disposable of disposables) disposable.dispose();
+        this.sdkEditorDisposables.clear();
+        for (const timer of this.sdkSyncTimers.values()) window.clearTimeout(timer);
+        this.sdkSyncTimers.clear();
     }
 
     protected installCSharpSyntaxHighlighting(): void {
@@ -169,6 +184,84 @@ export class InuEditorEnvironmentContribution implements FrontendApplicationCont
                 ]
             }
         });
+    }
+
+    protected installSdkReferenceIntelligence(): void {
+        this.sdkCompletionProvider = monaco.languages.registerCompletionItemProvider('csharp', {
+            provideCompletionItems: async (model, position) => {
+                const word = model.getWordUntilPosition(position);
+                const prefix = word.word;
+                if (prefix.length < 2) return { suggestions: [] };
+                const symbols = await this.projectService.listSdkReferenceSymbols(prefix);
+                const range = new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
+                return {
+                    suggestions: symbols.map(symbol => ({
+                        label: symbol.name,
+                        kind: monaco.languages.CompletionItemKind.Class,
+                        insertText: symbol.name,
+                        range,
+                        detail: `${symbol.namespace} — ${symbol.project} (Inu central SDK reference)`,
+                        documentation: `Kath will reference ${symbol.assembly} from Inu when this symbol is used; the DLL and source remain outside the generated OS unless explicitly materialised.`
+                    }))
+                };
+            }
+        });
+
+        const attachAll = () => {
+            for (const editor of MonacoEditor.getAll(this.editorManager)) this.attachSdkReferenceSynchronization(editor);
+        };
+        attachAll();
+        this.editorManager.onCreated(() => window.setTimeout(attachAll, 0));
+        this.editorManager.onCurrentEditorChanged(() => window.setTimeout(attachAll, 0));
+    }
+
+    protected attachSdkReferenceSynchronization(editor: MonacoEditor): void {
+        const sourcePath = editor.uri.path.fsPath();
+        if (!sourcePath.toLowerCase().endsWith('.cs') || this.sdkEditorDisposables.has(sourcePath.toLowerCase())) return;
+        const control = editor.getControl();
+        const key = sourcePath.toLowerCase();
+        const change = control.onDidChangeModelContent(() => {
+            if (this.sdkApplyingImports.has(key)) return;
+            const existing = this.sdkSyncTimers.get(key);
+            if (existing !== undefined) window.clearTimeout(existing);
+            this.sdkSyncTimers.set(key, window.setTimeout(() => void this.synchronizeSdkReferences(editor), 450));
+        });
+        const dispose = control.onDidDispose(() => {
+            const timer = this.sdkSyncTimers.get(key);
+            if (timer !== undefined) window.clearTimeout(timer);
+            this.sdkSyncTimers.delete(key);
+            const entries = this.sdkEditorDisposables.get(key) ?? [];
+            for (const item of entries) if (item !== dispose) item.dispose();
+            this.sdkEditorDisposables.delete(key);
+        });
+        this.sdkEditorDisposables.set(key, [change, dispose]);
+        void this.synchronizeSdkReferences(editor);
+    }
+
+    protected async synchronizeSdkReferences(editor: MonacoEditor): Promise<void> {
+        const sourcePath = editor.uri.path.fsPath();
+        const key = sourcePath.toLowerCase();
+        const model = editor.getControl().getModel();
+        if (!model || !sourcePath.toLowerCase().endsWith('.cs')) return;
+        const result = await this.projectService.synchronizeSdkReferences(sourcePath, model.getValue());
+        if (!result.success || result.namespaces.length === 0) return;
+        const text = model.getValue();
+        const missing = result.namespaces.filter(namespace => !new RegExp(`^\\s*using\\s+${namespace.replace(/\./g, '\\.')}\\s*;`, 'm').test(text));
+        if (missing.length === 0) return;
+        this.sdkApplyingImports.add(key);
+        try {
+            const lines = text.split(/\r?\n/);
+            let insertAfter = 0;
+            for (let index = 0; index < lines.length; index++) {
+                if (/^\s*using\s+[A-Za-z_][A-Za-z0-9_.]*\s*;/.test(lines[index])) insertAfter = index + 1;
+                else if (insertAfter > 0 && lines[index].trim() !== '') break;
+            }
+            const line = insertAfter > 0 ? insertAfter + 1 : 1;
+            const value = missing.map(namespace => `using ${namespace};`).join('\n') + '\n';
+            editor.getControl().executeEdits('inu-sdk-reference-resolver', [{ range: new monaco.Range(line, 1, line, 1), text: value, forceMoveMarkers: true }]);
+        } finally {
+            this.sdkApplyingImports.delete(key);
+        }
     }
 
     protected installBreakpointInteraction(): void {

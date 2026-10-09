@@ -922,11 +922,13 @@ public static class Gui
             // Compatibility fallback for SDK areas not yet decomposed into source components.
             // This is intentionally local to that selected feature; Kath no longer copies the
             // entire project dependency closure into System/SDK/src.
+            const usingProjects = new Set<string>();
             for (const sdkProject of this.managedSdkProjectsForGeneratedProject(project)) {
                 const sourceRoot = path.join(INU_SDK_ROOT, 'src', sdkProject);
                 const destinationRoot = path.join(projectDirectory, sdkProject);
                 try { await fs.access(sourceRoot); } catch { throw new Error(`Selected Inu source project is missing: ${sdkProject} (required by ${project.id})`); }
                 await this.copyManagedSourceFilesWithoutOverwriting(sourceRoot, destinationRoot);
+                usingProjects.add(sdkProject);
             }
             return;
         }
@@ -949,6 +951,12 @@ public static class Gui
             const destination = path.join(projectDirectory, 'Dependencies', sdkProject);
             await this.copyManagedSourceFilesWithoutOverwriting(path.join(INU_SDK_ROOT, 'src', sdkProject), destination);
         }
+        const usingProjects = new Set<string>(closure.legacyProjects);
+        for (const component of closure.components) {
+            const sdkProject = component.implementations?.CSharp?.project;
+            if (sdkProject) usingProjects.add(sdkProject);
+        }
+        for (const sdkProject of this.managedSdkProjectsForGeneratedProject(project)) usingProjects.add(sdkProject);
     }
 
     protected async copyManagedSourceFilesWithoutOverwriting(source: string, destination: string): Promise<void> {
@@ -988,6 +996,7 @@ public static class Gui
         );
         return [
             '<Project Sdk="Microsoft.NET.Sdk">',
+            `  <Import Project="${path.relative(projectDirectory, projectRoot).replace(/\\/g, '/') || '.'}/Inu.SdkReferences.props" Condition="Exists('${path.relative(projectDirectory, projectRoot).replace(/\\/g, '/') || '.'}/Inu.SdkReferences.props')" />`,
             '  <PropertyGroup>',
             '    <TargetFramework>net10.0</TargetFramework>',
             `    <OutputType>${outputType}</OutputType>`,

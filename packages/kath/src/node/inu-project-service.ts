@@ -84,6 +84,8 @@ import {
     InuDeviceBus,
     InuDeviceTreeNode,
     InuDeviceTreeSnapshot,
+    InuSdkReferenceSymbol,
+    InuSdkReferenceSyncResult,
     InuProjectService
 } from '../common/inu-protocol';
 
@@ -107,6 +109,234 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
 
     async getProjectGenerationProgress(): Promise<number> {
         return this.projectGenerationPercent;
+    }
+
+    protected async loadSdkReferenceManifest(): Promise<{ symbols: InuSdkReferenceSymbol[] }> {
+        const manifestPath = path.join(INU_SDK_ROOT, 'References', 'manifest.json');
+        const parsed = JSON.parse(await fs.readFile(manifestPath, 'utf8')) as { symbols?: InuSdkReferenceSymbol[] };
+        return { symbols: Array.isArray(parsed.symbols) ? parsed.symbols : [] };
+    }
+
+    async listSdkReferenceSymbols(prefix = ''): Promise<InuSdkReferenceSymbol[]> {
+        try {
+            const { symbols } = await this.loadSdkReferenceManifest();
+            const needle = prefix.trim().toLowerCase();
+            const filtered = needle ? symbols.filter(symbol => symbol.name.toLowerCase().startsWith(needle)) : symbols;
+            return filtered.slice(0, 200);
+        } catch {
+            return [];
+        }
+    }
+
+    protected async findOperatingSystemRootFromSource(sourcePath: string): Promise<string> {
+        let current = path.resolve(path.dirname(sourcePath));
+        const filesystemRoot = path.parse(current).root;
+        for (;;) {
+            for (const marker of ['InuProject.json', 'Inu.json']) {
+                try { await fs.access(path.join(current, marker)); return current; } catch { }
+            }
+            if (current === filesystemRoot) break;
+            const parent = path.dirname(current);
+            if (parent === current) break;
+            current = parent;
+        }
+        throw new Error(`The source file is not inside a Kath/Inu operating-system project: ${sourcePath}`);
+    }
+
+    protected async nearestCSharpProject(sourcePath: string, projectRoot: string): Promise<string> {
+        let current = path.resolve(path.dirname(sourcePath));
+        const root = path.resolve(projectRoot);
+        for (;;) {
+            const projects = (await fs.readdir(current, { withFileTypes: true }).catch(() => [] as import('fs').Dirent[]))
+                .filter(entry => entry.isFile() && entry.name.toLowerCase().endsWith('.csproj'))
+                .map(entry => path.join(current, entry.name));
+            if (projects.length > 0) return projects.sort((a, b) => a.localeCompare(b))[0];
+            if (current === root) break;
+            const parent = path.dirname(current);
+            if (!parent.startsWith(root) || parent === current) break;
+            current = parent;
+        }
+        const rootProjects = (await fs.readdir(root, { withFileTypes: true }).catch(() => [] as import('fs').Dirent[]))
+            .filter(entry => entry.isFile() && entry.name.toLowerCase().endsWith('.csproj'))
+            .map(entry => path.join(root, entry.name));
+        if (rootProjects.length > 0) return rootProjects.sort((a, b) => a.localeCompare(b))[0];
+        throw new Error(`No C# project owns ${sourcePath}.`);
+    }
+
+    protected stripCSharpCommentsAndStrings(source: string): string {
+        return source
+            .replace(/\/\*[\s\S]*?\*\//g, ' ')
+            .replace(/\/\/[^\r\n]*/g, ' ')
+            .replace(/@"(?:[^"]|"")*"/g, ' ')
+            .replace(/"(?:\\.|[^"\\])*"/g, ' ')
+            .replace(/'(?:\\.|[^'\\])'/g, ' ');
+    }
+
+    protected inferSdkReferences(source: string, symbols: InuSdkReferenceSymbol[]): { selected: InuSdkReferenceSymbol[]; namespaces: string[]; ambiguous: string[] } {
+        const clean = this.stripCSharpCommentsAndStrings(source);
+        const imported = new Set(Array.from(clean.matchAll(/^\s*using\s+([A-Za-z_][A-Za-z0-9_.]*)\s*;/gm), match => match[1]));
+        const declared = new Set(Array.from(clean.matchAll(/\b(?:class|struct|interface|enum|record)\s+([A-Za-z_][A-Za-z0-9_]*)/g), match => match[1]));
+        const byName = new Map<string, InuSdkReferenceSymbol[]>();
+        for (const symbol of symbols) {
+            const list = byName.get(symbol.name) ?? [];
+            list.push(symbol);
+            byName.set(symbol.name, list);
+        }
+        const selected = new Map<string, InuSdkReferenceSymbol>();
+        const namespaces = new Set<string>();
+        const ambiguous = new Set<string>();
+        for (const [name, candidates] of byName) {
+            if (declared.has(name)) continue;
+            const token = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+            if (!token.test(clean)) continue;
+            const qualified = candidates.filter(candidate => new RegExp(`\\b${candidate.namespace.replace(/\./g, '\\.') }\\s*\\.\\s*${name}\\b`).test(clean));
+            let chosen: InuSdkReferenceSymbol | undefined;
+            if (qualified.length === 1) chosen = qualified[0];
+            else {
+                const importedMatches = candidates.filter(candidate => imported.has(candidate.namespace));
+                if (importedMatches.length === 1) chosen = importedMatches[0];
+                else if (candidates.length === 1) chosen = candidates[0];
+                else { ambiguous.add(name); continue; }
+            }
+            selected.set(chosen.project, chosen);
+            const unqualified = new RegExp(`(^|[^.A-Za-z0-9_])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'm');
+            if (!imported.has(chosen.namespace) && unqualified.test(clean)) namespaces.add(chosen.namespace);
+        }
+        return { selected: Array.from(selected.values()).sort((a, b) => a.project.localeCompare(b.project)), namespaces: Array.from(namespaces).sort(), ambiguous: Array.from(ambiguous).sort() };
+    }
+
+    protected async sourceFilesForProject(projectFile: string, projectRoot: string): Promise<string[]> {
+        const projectDirectory = path.dirname(projectFile);
+        const isRootProject = path.resolve(projectDirectory) === path.resolve(projectRoot);
+        const root = isRootProject ? projectRoot : projectDirectory;
+        const result: string[] = [];
+        const visit = async (directory: string): Promise<void> => {
+            for (const entry of await fs.readdir(directory, { withFileTypes: true }).catch(() => [] as import('fs').Dirent[])) {
+                if (entry.isSymbolicLink()) continue;
+                if (entry.isDirectory()) {
+                    if (['bin','obj','.git','.theia','Provided'].includes(entry.name)) continue;
+                    await visit(path.join(directory, entry.name));
+                } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.cs')) result.push(path.join(directory, entry.name));
+            }
+        };
+        if (isRootProject) {
+            for (const area of ['Kernel', 'Boot']) {
+                const areaRoot = path.join(root, area);
+                try { await fs.access(areaRoot); await visit(areaRoot); } catch { }
+            }
+        } else {
+            await visit(root);
+        }
+        return result;
+    }
+
+    protected sdkReferencePropsPath(projectFile: string): string {
+        return path.join(path.dirname(projectFile), 'Inu.SdkReferences.props');
+    }
+
+    protected async readMaterializedSdkLibraries(projectFile: string): Promise<Set<string>> {
+        const manifest = path.join(path.dirname(projectFile), 'Inu.SdkMaterialized.json');
+        try {
+            const parsed = JSON.parse(await fs.readFile(manifest, 'utf8')) as { projects?: string[] };
+            return new Set((parsed.projects ?? []).filter(item => typeof item === 'string'));
+        } catch { return new Set(); }
+    }
+
+    protected async writeSdkReferenceProps(projectFile: string, references: InuSdkReferenceSymbol[], materialized: Set<string>): Promise<void> {
+        const projectDirectory = path.dirname(projectFile);
+        const materializedRoot = path.join(projectDirectory, 'Libraries', 'SDK');
+        const xml = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const lines = ['<Project>'];
+        const central = references.filter(reference => !materialized.has(reference.project));
+        if (central.length > 0) {
+            lines.push('  <ItemGroup>');
+            for (const reference of central) {
+                const hint = path.join(INU_SDK_ROOT, 'References', 'All', `${reference.project}.dll`);
+                lines.push(`    <Reference Include="${xml(reference.assembly)}">`);
+                lines.push(`      <HintPath>${xml(hint)}</HintPath>`);
+                lines.push('      <Private>false</Private>');
+                lines.push('    </Reference>');
+            }
+            lines.push('  </ItemGroup>');
+        }
+        const projectText = await fs.readFile(projectFile, 'utf8').catch(() => '');
+        const needsExplicitCompile = /<EnableDefaultItems>\s*false\s*<\/EnableDefaultItems>/.test(projectText)
+            || /<EnableDefaultCompileItems>\s*false\s*<\/EnableDefaultCompileItems>/.test(projectText);
+        if (materialized.size > 0 && needsExplicitCompile) {
+            lines.push('  <ItemGroup>');
+            for (const project of Array.from(materialized).sort()) {
+                const source = path.join(materializedRoot, project, '**', '*.cs');
+                lines.push(`    <Compile Include="${xml(source)}" />`);
+            }
+            lines.push('  </ItemGroup>');
+        }
+        lines.push('</Project>', '');
+        await fs.writeFile(this.sdkReferencePropsPath(projectFile), lines.join('\n'), 'utf8');
+    }
+
+    async synchronizeSdkReferences(sourcePath: string, sourceText: string): Promise<InuSdkReferenceSyncResult> {
+        try {
+            const absoluteSource = path.resolve(sourcePath);
+            const projectRoot = await this.findOperatingSystemRootFromSource(absoluteSource);
+            const projectFile = await this.nearestCSharpProject(absoluteSource, projectRoot);
+            const { symbols } = await this.loadSdkReferenceManifest();
+            const files = await this.sourceFilesForProject(projectFile, projectRoot);
+            const fragments: string[] = [];
+            for (const file of files) {
+                if (path.resolve(file).toLowerCase() === absoluteSource.toLowerCase()) fragments.push(sourceText);
+                else fragments.push(await fs.readFile(file, 'utf8').catch(() => ''));
+            }
+            if (!files.some(file => path.resolve(file).toLowerCase() === absoluteSource.toLowerCase())) fragments.push(sourceText);
+            const inferred = this.inferSdkReferences(fragments.join('\n'), symbols);
+            const currentFile = this.inferSdkReferences(sourceText, symbols);
+            const materialized = await this.readMaterializedSdkLibraries(projectFile);
+            await this.writeSdkReferenceProps(projectFile, inferred.selected, materialized);
+            const referenceManifest = path.join(path.dirname(projectFile), 'Inu.SdkReferences.json');
+            await fs.writeFile(referenceManifest, JSON.stringify({
+                schemaVersion: 1,
+                generatedBy: `Kath ${KATH_VERSION}`,
+                references: inferred.selected.map(item => ({ project: item.project, assembly: item.assembly, namespace: item.namespace })),
+                materialized: Array.from(materialized).sort()
+            }, null, 2) + '\n', 'utf8');
+            return { success: true, projectFile, references: inferred.selected.map(item => item.project), namespaces: currentFile.namespaces, ambiguous: currentFile.ambiguous };
+        } catch (error) {
+            return { success: false, references: [], namespaces: [], ambiguous: [], error: error instanceof Error ? error.message : String(error) };
+        }
+    }
+
+    async materializeSdkLibraryForSymbol(sourcePath: string, symbolName: string): Promise<InuProjectResult> {
+        try {
+            const absoluteSource = path.resolve(sourcePath);
+            const projectRoot = await this.findOperatingSystemRootFromSource(absoluteSource);
+            const projectFile = await this.nearestCSharpProject(absoluteSource, projectRoot);
+            const { symbols } = await this.loadSdkReferenceManifest();
+            const candidates = symbols.filter(symbol => symbol.name === symbolName);
+            if (candidates.length !== 1) throw new Error(candidates.length === 0
+                ? `No central Inu SDK library owns the symbol ${symbolName}.`
+                : `${symbolName} is ambiguous; qualify the symbol before materialising its SDK library.`);
+            const candidate = candidates[0];
+            const sourceProject = path.join(INU_SDK_ROOT, 'src', candidate.project);
+            const destination = path.join(path.dirname(projectFile), 'Libraries', 'SDK', candidate.project);
+            await fs.rm(destination, { recursive: true, force: true });
+            const copy = async (from: string, to: string): Promise<void> => {
+                await fs.mkdir(to, { recursive: true });
+                for (const entry of await fs.readdir(from, { withFileTypes: true })) {
+                    if (['bin','obj','.vs'].includes(entry.name)) continue;
+                    const source = path.join(from, entry.name), target = path.join(to, entry.name);
+                    if (entry.isDirectory()) await copy(source, target);
+                    else if (entry.isFile() && entry.name.toLowerCase().endsWith('.cs')) await fs.copyFile(source, target);
+                }
+            };
+            await copy(sourceProject, destination);
+            const materialized = await this.readMaterializedSdkLibraries(projectFile);
+            materialized.add(candidate.project);
+            await fs.writeFile(path.join(path.dirname(projectFile), 'Inu.SdkMaterialized.json'), JSON.stringify({ schemaVersion: 1, projects: Array.from(materialized).sort() }, null, 2) + '\n', 'utf8');
+            const sync = await this.synchronizeSdkReferences(absoluteSource, await fs.readFile(absoluteSource, 'utf8').catch(() => ''));
+            if (!sync.success) throw new Error(sync.error ?? 'Could not refresh SDK references after materialising source.');
+            return { success: true, projectPath: destination };
+        } catch (error) {
+            return { success: false, error: error instanceof Error ? error.message : String(error) };
+        }
     }
 
     async getSdkApiSiteUrl(): Promise<string> {

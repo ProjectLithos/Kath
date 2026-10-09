@@ -8,6 +8,7 @@ import { AbstractViewContribution, CommonMenus, FrontendApplicationContribution 
 import { NavigatorContextMenu } from '@theia/navigator/lib/browser/navigator-contribution';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { EDITOR_CONTEXT_MENU, EDITOR_LINENUMBER_CONTEXT_MENU, EditorManager } from '@theia/editor/lib/browser';
+import { MonacoEditor } from '@theia/monaco/lib/browser/monaco-editor';
 import { OutputChannelManager } from '@theia/output/lib/browser/output-channel';
 import { InuBreakpointManager } from './inu-breakpoint-manager';
 import { InuWidget, INU_EXPLICIT_WORKSPACE_OPEN } from './inu-widget';
@@ -81,6 +82,7 @@ export namespace InuCommands {
     export const IMAGES: Command = { id: 'inu.engineering.imageDiskExplorer', label: 'Image / Disk Explorer' };
     export const PHYSICAL_DEBUGGER: Command = { id: 'inu.engineering.physicalDebugger', label: 'Physical-machine Debugger Transport' };
     export const SDK_API: Command = { id: 'inu.help.sdkApi', label: 'SDK API' };
+    export const MATERIALIZE_SDK_LIBRARY: Command = { id: 'inu.sdk.materializeLibraryForSymbol', label: 'Materialise Inu SDK Library for Symbol' };
     export const GO_BUILD: Command = { id: 'inu.go.build', label: 'Build Inu OS' };
     export const GO_RUN: Command = { id: 'inu.go.run', label: 'Run Inu OS' };
     export const GO_DEBUG: Command = { id: 'inu.go.debug', label: 'Debug Inu OS' };
@@ -185,6 +187,11 @@ export class InuContribution extends AbstractViewContribution<InuWidget>
             execute: () => this.editCurrentBreakpointHitCount(),
             isEnabled: () => true,
             isVisible: () => true
+        });
+        commands.registerCommand(InuCommands.MATERIALIZE_SDK_LIBRARY, {
+            execute: () => this.materializeSdkLibraryForCurrentSymbol(),
+            isEnabled: () => !!this.currentEditorSymbol(),
+            isVisible: () => !!this.currentEditorSymbol()
         });
         commands.registerCommand(InuCommands.ARCHITECTURE, { execute: () => this.showKathArchitecture(), isEnabled: () => !!this.currentOperatingSystemPath() });
         commands.registerCommand(InuCommands.COMPONENTS, { execute: () => this.showKathSideWidget(this.componentLibraryWidget, 'left'), isEnabled: () => !!this.currentOperatingSystemPath() });
@@ -302,6 +309,12 @@ export class InuContribution extends AbstractViewContribution<InuWidget>
             order: '2'
         });
 
+        menus.registerMenuAction([...EDITOR_CONTEXT_MENU, '3_inu_sdk'], {
+            commandId: InuCommands.MATERIALIZE_SDK_LIBRARY.id,
+            label: 'Materialise Inu SDK Library for Symbol',
+            order: '0'
+        });
+
         // Theia uses a distinct menu for right-clicks on the line-number/glyph
         // gutter. Link the same Debug submenu there so both source and gutter
         // context menus expose Debug -> Toggle Breakpoint.
@@ -309,6 +322,34 @@ export class InuContribution extends AbstractViewContribution<InuWidget>
             newParentPath: EDITOR_LINENUMBER_CONTEXT_MENU,
             submenuPath: editorDebugMenu
         });
+    }
+
+    protected currentEditorSymbol(): { sourcePath: string; symbol: string } | undefined {
+        const editor = this.editorManager.currentEditor;
+        if (!(editor instanceof MonacoEditor)) return undefined;
+        const sourcePath = editor.uri.path.fsPath();
+        if (!sourcePath.toLowerCase().endsWith('.cs')) return undefined;
+        const control = editor.getControl();
+        const position = control.getPosition();
+        const model = control.getModel();
+        if (!position || !model) return undefined;
+        const word = model.getWordAtPosition(position)?.word;
+        return word ? { sourcePath, symbol: word } : undefined;
+    }
+
+    protected async materializeSdkLibraryForCurrentSymbol(): Promise<void> {
+        const current = this.currentEditorSymbol();
+        if (!current) {
+            await this.messageService.warn('Place the caret on a symbol supplied by an Inu SDK library first.');
+            return;
+        }
+        await this.shell.saveAll();
+        const result = await this.projectService.materializeSdkLibraryForSymbol(current.sourcePath, current.symbol);
+        if (!result.success) {
+            await this.messageService.error(result.error ?? `Could not materialise the SDK library for ${current.symbol}.`);
+            return;
+        }
+        await this.messageService.info(`${current.symbol}'s Inu SDK library is now project-owned source at ${result.projectPath}.`);
     }
 
     protected async executeSdkCommand(command: InuSdkCommand): Promise<void> {
