@@ -2,7 +2,7 @@
   "name": "@kath/electron",
   "private": true,
   "productName": "Kath",
-  "version": "0.0.108",
+  "version": "0.0.109",
   "main": "lib/backend/electron-main.js",
   "theia": {
     "target": "electron",
