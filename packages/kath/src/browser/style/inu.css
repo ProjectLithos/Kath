@@ -840,9 +840,13 @@ body.inu-has-title-logo .lm-MenuBar {
 .inu-problems-header,.inu-problem-row{display:grid;grid-template-columns:90px minmax(150px,240px) 70px minmax(320px,1fr);align-items:center;min-width:720px}
 .inu-problems-header{position:sticky;top:0;z-index:2;min-height:27px;background:var(--theia-editorWidget-background);border-bottom:1px solid var(--theia-panel-border);font-weight:600}
 .inu-problems-header>span,.inu-problem-row>span{padding:5px 8px;border-right:1px solid var(--theia-panel-border);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.inu-problem-row{min-height:27px;border-bottom:1px solid color-mix(in srgb,var(--theia-panel-border) 65%,transparent);cursor:pointer}
-.inu-problem-row:hover,.inu-problem-row:focus{outline:none;background:var(--theia-list-hoverBackground)}
-.inu-problem-row:focus{box-shadow:inset 0 0 0 1px var(--theia-focusBorder)}
+.inu-problem-row{min-height:27px;border-bottom:1px solid color-mix(in srgb,var(--theia-panel-border) 65%,transparent);cursor:default}
+.inu-problem-row.navigable{cursor:pointer}
+.inu-problem-row.navigable .inu-problem-file,.inu-problem-row.navigable .inu-problem-line{color:var(--theia-textLink-foreground);font-weight:600}
+.inu-problem-row.navigable:hover,.inu-problem-row.navigable:focus{outline:none;background:var(--theia-list-hoverBackground)}
+.inu-problem-row.navigable:focus{box-shadow:inset 0 0 0 1px var(--theia-focusBorder)}
+.inu-problem-row.summary{color:var(--theia-descriptionForeground)}
+.inu-problem-row.summary .inu-problem-file,.inu-problem-row.summary .inu-problem-line{color:var(--theia-descriptionForeground)}
 .inu-problem-severity{display:flex;align-items:center;gap:6px}
 .inu-problem-row.error .inu-problem-severity{color:var(--theia-errorForeground)}
 .inu-problem-row.warning .inu-problem-severity{color:var(--theia-editorWarning-foreground)}

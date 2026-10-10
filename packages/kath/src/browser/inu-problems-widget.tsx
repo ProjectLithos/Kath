@@ -190,7 +190,7 @@ export class InuProblemsWidget extends ReactWidget {
                 {this.problems.length === 0
                     ? <div className='inu-problems-empty'>No errors or warnings.</div>
                     : this.problems.map((problem, index) => <div
-                        className={`inu-problem-row ${problem.severity}`}
+                        className={`inu-problem-row ${problem.severity} ${problem.filePath && problem.line ? 'navigable' : 'summary'}`}
                         role='row'
                         tabIndex={problem.filePath && problem.line ? 0 : -1}
                         title={problem.filePath && problem.line ? `${problem.filePath}:${problem.line}:${problem.column ?? 1}` : problem.message}
