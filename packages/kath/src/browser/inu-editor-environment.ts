@@ -295,7 +295,7 @@ export class InuEditorEnvironmentContribution implements FrontendApplicationCont
         while ((separatorMatch = separatorPattern.exec(text))) {
             const token = separatorMatch[1];
             const separator = token === '\\\\' ? '\\' : token === "\\'" ? "'" : token;
-            if (separator === ':' || separator === '/' || separator === '\\') separatorCalls.push({ index: separatorMatch.index, separator });
+            if (separator.length === 1) separatorCalls.push({ index: separatorMatch.index, separator });
         }
 
         const addMarker = (absoluteIndex: number, sourceLength: number, separator: string, invalid: string): void => {
@@ -326,7 +326,10 @@ export class InuEditorEnvironmentContribution implements FrontendApplicationCont
                 } else if (verbatim && value === '"' && raw[i + 1] === '"') {
                     i++; continue;
                 }
-                if ((value === ':' || value === '/' || value === '\\') && value !== separator) {
+                const code = value.length === 1 ? value.charCodeAt(0) : 0;
+                const filenameFriendly = /[A-Za-z0-9._ -]/.test(value);
+                const separatorLike = code > 0 && code <= 0x7f && !filenameFriendly;
+                if (separatorLike && value !== separator) {
                     addMarker(absoluteStart + i, sourceLength, separator, value);
                     if (sourceLength === 2) i++;
                 }
