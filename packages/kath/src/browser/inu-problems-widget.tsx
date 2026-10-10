@@ -24,6 +24,7 @@ export class InuProblemsWidget extends ReactWidget {
     protected readonly editorManager!: EditorManager;
 
     protected problems: InuProblem[] = [];
+    protected readonly liveProblems = new Map<string, InuProblem[]>();
     protected pending = '';
     protected readonly keys = new Set<string>();
 
@@ -38,11 +39,41 @@ export class InuProblemsWidget extends ReactWidget {
     }
 
     clear(): void {
+        // Build/output diagnostics are transient. Live editor diagnostics belong to the
+        // open source models and therefore remain visible until the source is corrected
+        // or the model is closed.
         this.problems = [];
         this.pending = '';
         this.keys.clear();
         this.updateTitle();
         this.update();
+    }
+
+    setLiveProblems(filePath: string, problems: InuProblem[]): void {
+        const key = filePath.trim().toLowerCase();
+        if (!key) return;
+        if (problems.length === 0) this.liveProblems.delete(key);
+        else this.liveProblems.set(key, problems.map(problem => ({ ...problem, filePath: problem.filePath || filePath })));
+        this.updateTitle();
+        this.update();
+    }
+
+    clearLiveProblems(filePath: string): void {
+        const key = filePath.trim().toLowerCase();
+        if (!key || !this.liveProblems.delete(key)) return;
+        this.updateTitle();
+        this.update();
+    }
+
+    protected get allProblems(): InuProblem[] {
+        const combined = [...this.problems, ...Array.from(this.liveProblems.values()).flat()];
+        const seen = new Set<string>();
+        return combined.filter(problem => {
+            const key = `${problem.severity}|${(problem.filePath ?? '').toLowerCase()}|${problem.line ?? 0}|${problem.column ?? 0}|${problem.code ?? ''}|${problem.message}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
     }
 
     appendOutput(text: string, complete = false): void {
@@ -59,9 +90,9 @@ export class InuProblemsWidget extends ReactWidget {
         this.update();
     }
 
-    get count(): number { return this.problems.length; }
-    get errorCount(): number { return this.problems.filter(problem => problem.severity === 'error').length; }
-    get warningCount(): number { return this.problems.filter(problem => problem.severity === 'warning').length; }
+    get count(): number { return this.allProblems.length; }
+    get errorCount(): number { return this.allProblems.filter(problem => problem.severity === 'error').length; }
+    get warningCount(): number { return this.allProblems.filter(problem => problem.severity === 'warning').length; }
 
     addBuildFailure(message: string, code = 'NOVA-RUN'): void {
         this.addBuildProblem('error', message, code);
@@ -70,7 +101,8 @@ export class InuProblemsWidget extends ReactWidget {
     }
 
     protected updateTitle(): void {
-        this.title.label = this.problems.length ? `Problems (${this.problems.length})` : InuProblemsWidget.LABEL;
+        const count = this.allProblems.length;
+        this.title.label = count ? `Problems (${count})` : InuProblemsWidget.LABEL;
     }
 
     protected parseLine(raw: string): void {
@@ -187,9 +219,9 @@ export class InuProblemsWidget extends ReactWidget {
                     <span role='columnheader'>Line</span>
                     <span role='columnheader'>Message</span>
                 </div>
-                {this.problems.length === 0
+                {this.allProblems.length === 0
                     ? <div className='inu-problems-empty'>No errors or warnings.</div>
-                    : this.problems.map((problem, index) => <div
+                    : this.allProblems.map((problem, index) => <div
                         className={`inu-problem-row ${problem.severity} ${problem.filePath && problem.line ? 'navigable' : 'summary'}`}
                         role='row'
                         tabIndex={problem.filePath && problem.line ? 0 : -1}

@@ -8,6 +8,7 @@ import * as monaco from '@theia/monaco-editor-core';
 import { OutputChannelManager } from '@theia/output/lib/browser/output-channel';
 import { InuBreakpointManager } from './inu-breakpoint-manager';
 import { InuProjectService } from '../common/inu-protocol';
+import { InuProblemsWidget, InuProblem } from './inu-problems-widget';
 
 /**
  * Keeps Kath aligned with the operating-system colour scheme and
@@ -33,6 +34,9 @@ export class InuEditorEnvironmentContribution implements FrontendApplicationCont
 
     @inject(InuProjectService)
     protected readonly projectService!: InuProjectService;
+
+    @inject(InuProblemsWidget)
+    protected readonly problemsWidget!: InuProblemsWidget;
 
     protected systemThemeQuery: MediaQueryList | undefined;
     protected systemThemeChangeListener: ((event: MediaQueryListEvent) => void) | undefined;
@@ -211,7 +215,11 @@ export class InuEditorEnvironmentContribution implements FrontendApplicationCont
         const attachAll = () => {
             for (const editor of MonacoEditor.getAll(this.editorManager)) this.attachSdkReferenceSynchronization(editor);
         };
+        // Restored editor tabs are created asynchronously by Theia. Scan now and again while
+        // the workbench restores so every already-open C# model receives diagnostics without
+        // requiring focus, an edit, Save, Build or Run.
         attachAll();
+        for (const delay of [0, 75, 250, 750]) window.setTimeout(attachAll, delay);
         this.editorManager.onCreated(() => window.setTimeout(attachAll, 0));
         this.editorManager.onCurrentEditorChanged(() => window.setTimeout(attachAll, 0));
     }
@@ -224,6 +232,7 @@ export class InuEditorEnvironmentContribution implements FrontendApplicationCont
         const change = control.onDidChangeModelContent(() => {
             this.updateCSharpSlashDiagnostics(editor);
             this.updateInuPathPolicyDiagnostics(editor);
+            this.publishLiveDiagnostics(editor);
             if (this.sdkApplyingImports.has(key)) return;
             const existing = this.sdkSyncTimers.get(key);
             if (existing !== undefined) window.clearTimeout(existing);
@@ -237,11 +246,30 @@ export class InuEditorEnvironmentContribution implements FrontendApplicationCont
             for (const item of entries) if (item !== dispose) item.dispose();
             this.sdkEditorDisposables.delete(key);
             this.csharpSlashDecorations.delete(key);
+            this.problemsWidget.clearLiveProblems(sourcePath);
         });
         this.sdkEditorDisposables.set(key, [change, dispose]);
         this.updateCSharpSlashDiagnostics(editor);
         this.updateInuPathPolicyDiagnostics(editor);
+        this.publishLiveDiagnostics(editor);
         void this.synchronizeSdkReferences(editor);
+    }
+
+    protected publishLiveDiagnostics(editor: MonacoEditor): void {
+        const sourcePath = editor.uri.path.fsPath();
+        const model = editor.getControl().getModel();
+        if (!model || !sourcePath.toLowerCase().endsWith('.cs')) return;
+        const diagnostics: InuProblem[] = monaco.editor.getModelMarkers({ resource: model.uri })
+            .filter(marker => marker.owner === 'kath-csharp-syntax' || marker.owner === 'kath-inu-policy')
+            .map(marker => ({
+                severity: marker.severity === monaco.MarkerSeverity.Warning ? 'warning' : 'error',
+                filePath: sourcePath,
+                line: marker.startLineNumber,
+                column: marker.startColumn,
+                code: typeof marker.code === 'string' ? marker.code : marker.code?.value,
+                message: marker.message
+            }));
+        this.problemsWidget.setLiveProblems(sourcePath, diagnostics);
     }
 
 
@@ -275,6 +303,53 @@ export class InuEditorEnvironmentContribution implements FrontendApplicationCont
                 range: new monaco.Range(lineNumber, 1, lineNumber, Math.max(1, text.length + 1)),
                 options: { isWholeLine: true, className: 'inu-csharp-error-line', overviewRuler: { color: '#d13438', position: monaco.editor.OverviewRulerLane.Right } }
             });
+        }
+
+        // Catch ordinary C# string/character escape mistakes immediately. Monaco's lexical
+        // grammar can colour an invalid escape, but it does not create a Problems diagnostic.
+        // This lightweight scanner is intentionally syntax-only and therefore needs no build.
+        const source = model.getValue();
+        let inBlockComment = false;
+        for (let i = 0; i < source.length; i++) {
+            const c = source[i], next = source[i + 1] ?? '';
+            if (inBlockComment) { if (c === '*' && next === '/') { inBlockComment = false; i++; } continue; }
+            if (c === '/' && next === '*') { inBlockComment = true; i++; continue; }
+            if (c === '/' && next === '/') { while (i < source.length && source[i] !== '\n') i++; continue; }
+            const verbatim = c === '@' && next === '"';
+            if (verbatim || c === '"' || c === "'") {
+                const quote = verbatim ? '"' : c;
+                if (verbatim) i++;
+                for (i++; i < source.length; i++) {
+                    const q = source[i];
+                    if (q === '\n' || q === '\r') break;
+                    if (verbatim) {
+                        if (q === '"' && source[i + 1] === '"') { i++; continue; }
+                        if (q === '"') break;
+                        continue;
+                    }
+                    if (q === quote) break;
+                    if (q !== '\\') continue;
+                    const escapeIndex = i;
+                    const e = source[i + 1] ?? '';
+                    const simple = "'\"\\0abfnrtv".includes(e);
+                    if (simple) { i++; continue; }
+                    let digits = 0;
+                    if (e === 'x') { let j = i + 2; while (j < source.length && digits < 4 && /[0-9A-Fa-f]/.test(source[j])) { digits++; j++; } if (digits > 0) { i = j - 1; continue; } }
+                    if (e === 'u' || e === 'U') { const needed = e === 'u' ? 4 : 8; let j = i + 2; while (j < source.length && digits < needed && /[0-9A-Fa-f]/.test(source[j])) { digits++; j++; } if (digits === needed) { i = j - 1; continue; } }
+                    const start = model.getPositionAt(escapeIndex);
+                    const end = model.getPositionAt(Math.min(source.length, escapeIndex + Math.max(2, e ? 2 : 1)));
+                    markers.push({
+                        severity: monaco.MarkerSeverity.Error,
+                        code: 'CS1009',
+                        message: 'Unrecognized escape sequence.',
+                        startLineNumber: start.lineNumber,
+                        startColumn: start.column,
+                        endLineNumber: end.lineNumber,
+                        endColumn: end.column
+                    });
+                    if (e) i++;
+                }
+            }
         }
         monaco.editor.setModelMarkers(model, owner, markers);
         const key = sourcePath.toLowerCase();
