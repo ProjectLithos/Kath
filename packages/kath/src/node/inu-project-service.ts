@@ -3041,7 +3041,7 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             await fs.access(path.join(projectRoot, 'Inu.json'));
             const previousProjects = await this.readGeneratedProjectGraph(projectRoot);
             const generatedProjects = this.buildProjectGraph(authoritativeConfiguration);
-            const totalSteps = generatedProjects.length + 18;
+            const totalSteps = generatedProjects.length + 19;
             let completedSteps = 0;
             const advance = () => { completedSteps++; this.projectGenerationPercent = Math.min(99, Math.floor((completedSteps * 100) / totalSteps)); };
 
@@ -3049,8 +3049,9 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             await this.createBaseDirectories(projectRoot, authoritativeConfiguration); advance();
             await fs.rm(path.join(projectRoot, 'Inu.slnx'), { force: true });
             for (const project of generatedProjects) { await this.writeGeneratedProject(projectRoot, authoritativeConfiguration, project); advance(); }
+            await this.materializeLogoAsset(projectRoot, authoritativeConfiguration); advance();
 
-                        await fs.writeFile(path.join(projectRoot, 'Inu.json'), this.configurationJson(authoritativeConfiguration), 'utf8'); advance();
+            await fs.writeFile(path.join(projectRoot, 'Inu.json'), this.configurationJson(authoritativeConfiguration), 'utf8'); advance();
             await fs.writeFile(path.join(projectRoot, 'Inu.Configuration.json'), this.sdkConfigurationJson(authoritativeConfiguration), 'utf8'); advance();
             await fs.writeFile(path.join(projectRoot, 'Inu.Configuration.props'), this.sdkConfigurationProps(authoritativeConfiguration), 'utf8'); advance();
             await fs.writeFile(path.join(projectRoot, 'Inu.Configuration.targets'), this.sdkConfigurationTargets(authoritativeConfiguration), 'utf8'); advance();
@@ -3094,15 +3095,16 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             // generated manifests, source tree and running OS must also say MyOs1-10.
             authoritativeConfiguration.name = allocation.name;
             const generatedProjects = this.buildProjectGraph(authoritativeConfiguration);
-            const totalSteps = generatedProjects.length + 19;
+            const totalSteps = generatedProjects.length + 20;
             let completedSteps = 0;
             const advance = () => { completedSteps++; this.projectGenerationPercent = Math.min(99, Math.floor((completedSteps * 100) / totalSteps)); };
 
             await this.createBaseDirectories(projectRoot, authoritativeConfiguration); advance();
             await fs.rm(path.join(projectRoot, 'Inu.slnx'), { force: true });
             for (const project of generatedProjects) { await this.writeGeneratedProject(projectRoot, authoritativeConfiguration, project); advance(); }
+            await this.materializeLogoAsset(projectRoot, authoritativeConfiguration); advance();
 
-                        await fs.writeFile(path.join(projectRoot, 'Inu.json'), this.configurationJson(authoritativeConfiguration), 'utf8'); advance();
+            await fs.writeFile(path.join(projectRoot, 'Inu.json'), this.configurationJson(authoritativeConfiguration), 'utf8'); advance();
             await fs.writeFile(path.join(projectRoot, 'Inu.Configuration.json'), this.sdkConfigurationJson(authoritativeConfiguration), 'utf8'); advance();
             await fs.writeFile(path.join(projectRoot, 'Inu.Configuration.props'), this.sdkConfigurationProps(authoritativeConfiguration), 'utf8'); advance();
             await fs.writeFile(path.join(projectRoot, 'Inu.Configuration.targets'), this.sdkConfigurationTargets(authoritativeConfiguration), 'utf8'); advance();

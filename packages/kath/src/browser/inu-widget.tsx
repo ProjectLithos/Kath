@@ -4,6 +4,7 @@ import { ConfirmDialog } from '@theia/core/lib/browser/dialogs';
 import URI from '@theia/core/lib/common/uri';
 import { BaseWidget } from '@theia/core/lib/browser/widgets/widget';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
+import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog/file-dialog-service';
 import { Message } from '@lumino/messaging';
 import {
     InuOperatingSystem,
@@ -29,6 +30,7 @@ export class InuWidget extends BaseWidget {
     @inject(InuProjectService) protected readonly projectService!: InuProjectService;
     @inject(MessageService) protected readonly messages!: MessageService;
     @inject(WorkspaceService) protected readonly workspaceService!: WorkspaceService;
+    @inject(FileDialogService) protected readonly fileDialogService!: FileDialogService;
 
     protected configuration: InuProjectConfiguration = this.createDefaultConfiguration();
     protected creating = false;
@@ -220,7 +222,7 @@ export class InuWidget extends BaseWidget {
         const identity = this.fieldset('1. OS identity');
         identity.appendChild(this.reconfiguringProjectPath ? this.readonlyPath('OS name', c.name) : this.textInput('OS name', c.name, value => c.name = value));
         identity.appendChild(this.textInput('Author', c.author, value => c.author = value));
-        identity.appendChild(this.textInput('Optional BMP logo', c.logoPath, value => c.logoPath = value.trim()));
+        identity.appendChild(this.logoInput(c.logoPath));
         identity.appendChild(this.reconfiguringProjectPath ? this.readonlyPath('OS folder', this.reconfiguringProjectPath) : this.textInput('Save operating systems in', c.location, value => c.location = value));
         card.appendChild(identity);
 
@@ -307,6 +309,48 @@ export class InuWidget extends BaseWidget {
         field.appendChild(this.element('label', undefined, label));
         const input = this.element('input', 'theia-input'); input.type = 'text'; input.value = value;
         input.addEventListener('input', () => update(input.value)); field.appendChild(input); return field;
+    }
+
+    protected logoInput(value: string): HTMLDivElement {
+        const field = this.element('div', 'inu-field');
+        field.appendChild(this.element('label', undefined, 'Optional BMP logo'));
+        const row = this.element('div', 'inu-path-picker');
+        const input = this.element('input', 'theia-input');
+        input.type = 'text';
+        input.value = value;
+        input.readOnly = true;
+        input.placeholder = 'No logo selected';
+        row.appendChild(input);
+        row.appendChild(this.button('Browse…', 'theia-button secondary', () => void this.browseForLogo()));
+        if (value) {
+            row.appendChild(this.button('Clear', 'theia-button secondary', () => {
+                this.configuration.logoPath = '';
+                this.renderContent();
+            }));
+        }
+        field.appendChild(row);
+        field.appendChild(this.element('div', 'inu-field-help', 'Select a BMP file. Kath copies it into Kernel/<OS>/Assets/Logo.bmp when the OS is created or reconfigured.'));
+        return field;
+    }
+
+    protected async browseForLogo(): Promise<void> {
+        const selection = await this.fileDialogService.showOpenDialog({
+            title: 'Select BMP logo',
+            openLabel: 'Use Logo',
+            canSelectFiles: true,
+            canSelectFolders: false,
+            canSelectMany: false
+        });
+        if (!selection) return;
+        const selected = Array.isArray(selection) ? selection[0] : selection;
+        if (!selected) return;
+        const selectedPath = selected.path.fsPath();
+        if (!selectedPath.toLowerCase().endsWith('.bmp')) {
+            await this.messages.error('Choose a BMP image for the operating-system logo.');
+            return;
+        }
+        this.configuration.logoPath = selectedPath;
+        this.renderContent();
     }
 
     protected readonlyPath(label: string, value: string): HTMLDivElement {
@@ -413,7 +457,14 @@ export class InuWidget extends BaseWidget {
             const generation = this.reconfiguringProjectPath ? this.projectService.reconfigureProject(this.reconfiguringProjectPath, c) : this.projectService.createProject(c);
             this.startGenerationProgressPolling(); const result = await generation;
             if (!result.success) { this.generationStatus = `Generation failed: ${result.error ?? 'Unknown error'}`; await this.messages.error(this.generationStatus); return; }
-            this.configuration = c; this.generationPercent = 100; this.generationStatus = `OS generated at ${result.projectPath ?? this.reconfiguringProjectPath}.`;
+            const generatedProjectPath = result.projectPath ?? this.reconfiguringProjectPath;
+            if (generatedProjectPath) {
+                const refreshed = await this.projectService.readProjectConfiguration(generatedProjectPath);
+                this.configuration = refreshed.success && refreshed.configuration ? refreshed.configuration : c;
+            } else {
+                this.configuration = c;
+            }
+            this.generationPercent = 100; this.generationStatus = `OS generated at ${generatedProjectPath}.`;
             if (!this.reconfiguringProjectPath) {
                 await this.refreshOperatingSystems();
                 if (result.projectPath) {

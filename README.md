@@ -60,7 +60,7 @@ Kath's project definition (`schemaVersion` 9) records the architectural intent e
 
 | Setting | Options |
 |---|---|
-| **OS identity** | Name, author, save location, optional logo (a simple uncompressed BMP, 24- or 32-bit) |
+| **OS identity** | Name, author, save location, optional logo selected through a file browser (a simple uncompressed BMP, 24- or 32-bit) |
 | **Target architecture** | **x64** (the only supported choice today) |
 | **Boot method** | **UEFI** (the only supported choice today) |
 | **Kernel model** | Monolithic, Microkernel, Hybrid, Custom. This changes the generated structure; it is not just a label. |
@@ -133,7 +133,7 @@ Generated output (`lib`, `src-gen`, `node_modules`, `.toolchain`, `Bin`, `Artifa
 
 1. Start Kath with `Run-Kath.bat`.
 2. Run **Inu: Create Operating System** from the Command Palette (the configurator also opens from the Inu menu).
-3. Enter the OS name (and optionally author and logo), choose a parent folder, then work through architecture, boot method, kernel model, executable formats, startup model and hardware support.
+3. Enter the OS name and author, optionally browse for a BMP logo, choose a parent folder, then work through architecture, boot method, kernel model, executable formats, startup model and hardware support. Kath copies a chosen logo into the generated kernel Assets folder and records that project-local path.
 4. Confirm. Kath generates the source ("Generating the OS…") and opens the new project as your workspace.
 
 Each OS you create gets its own registry entry and a numbered instance folder (for example `MyOs1`), so creating several OSes with the same name never collides. The registry lives at `%USERPROFILE%\.kath\operating-systems.json` (override with `KATH_STATE_ROOT`). Deleting or forgetting an OS always resolves from its registry ID, never from a folder scan or display name.
@@ -212,7 +212,7 @@ MyOs1/
 ├── HAL/  Startup/
 ├── Sdk/                   Copied Inu components, compiled with NativeAOT as OS-owned source
 ├── KernelProjects/  Tests/
-├── Assets/Logo.bmp        (if you chose a logo)
+├── Kernel/<OS>/Assets/Logo.bmp   (if you chose a logo)
 └── .theia/settings.json   Workspace settings written by Kath
 ```
 

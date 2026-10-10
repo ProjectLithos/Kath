@@ -926,3 +926,9 @@ html, body, #theia-app-shell, .theia-ApplicationShell {
     background: rgba(209, 52, 56, 0.22);
     box-shadow: inset 3px 0 0 #d13438;
 }
+
+/* Logo/file selection uses the native Theia file dialog while keeping the
+   project-local copied path visible and read-only. */
+.inu-path-picker { display:flex; gap:8px; align-items:center; }
+.inu-path-picker .theia-input { flex:1 1 auto; min-width:0; }
+.inu-path-picker .theia-button { flex:0 0 auto; }

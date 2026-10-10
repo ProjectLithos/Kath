@@ -455,6 +455,37 @@ export abstract class InuProjectGenerationSupport {
         throw new Error('Kath&Inu requires a TrueType console font but none was found in Kath/Inu assets or the Windows font directories.');
     }
 
+    protected async materializeLogoAsset(projectRoot: string, configuration: InuProjectConfiguration): Promise<void> {
+        const relativeLogoPath = path.join('Kernel', this.safeSegment(configuration.name), 'Assets', 'Logo.bmp');
+        const destination = path.join(projectRoot, relativeLogoPath);
+        const configuredPath = (configuration.logoPath || '').trim();
+        const legacyDestination = path.join(projectRoot, 'Assets', 'Logo.bmp');
+
+        if (!configuredPath) {
+            await fs.rm(destination, { force: true });
+            await fs.rm(legacyDestination, { force: true });
+            configuration.logoPath = '';
+            return;
+        }
+
+        try {
+            const source = path.isAbsolute(configuredPath)
+                ? path.resolve(configuredPath)
+                : path.resolve(projectRoot, configuredPath);
+            if (path.extname(source).toLowerCase() !== '.bmp') throw new Error('The Kath&Inu logo must be a BMP file.');
+            await fs.mkdir(path.dirname(destination), { recursive: true });
+            if (source.toLowerCase() !== destination.toLowerCase()) {
+                await fs.copyFile(source, destination);
+            }
+            if (legacyDestination.toLowerCase() !== destination.toLowerCase()) {
+                await fs.rm(legacyDestination, { force: true });
+            }
+            configuration.logoPath = relativeLogoPath.replace(/\\/g, '/');
+        } catch (error) {
+            throw new Error(`Could not copy OS logo into the kernel Assets folder: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
     protected async materializeCoderOwnedSource(projectRoot: string, configuration: InuProjectConfiguration): Promise<void> {
         await this.materializeRequiredConsoleFont(projectRoot);
         const osName = this.safeSegment(configuration.name);
@@ -609,17 +640,6 @@ public static class Gui
     }
 }
 `);
-        }
-        if (configuration.logoPath) {
-            try {
-                const source = path.resolve(configuration.logoPath);
-                if (path.extname(source).toLowerCase() !== '.bmp') throw new Error('The Kath&Inu logo must be a BMP file.');
-                const assets = path.join(projectRoot, 'Assets');
-                await fs.mkdir(assets, { recursive: true });
-                await fs.copyFile(source, path.join(assets, 'Logo.bmp'));
-            } catch (error) {
-                throw new Error(`Could not copy OS logo: ${error instanceof Error ? error.message : String(error)}`);
-            }
         }
     }
 
