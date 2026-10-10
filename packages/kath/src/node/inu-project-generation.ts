@@ -600,12 +600,11 @@ public static class Shell
             const canonicalCommands = path.join(INU_SDK_ROOT, 'src', 'Userland', 'Commands');
             for (const commandFile of (await fs.readdir(canonicalCommands)).filter(name => name.endsWith('.cs')).sort()) {
                 const commandSource = await fs.readFile(path.join(canonicalCommands, commandFile), 'utf8');
-                await this.writeCoderOwnedFile(path.join(commands, commandFile),
-                    commandSource.replace('namespace Inu.Userland.Commands;', `namespace ${ns}.Userland.Commands;`));
+                await this.writeCoderOwnedFile(path.join(commands, commandFile), commandSource);
             }
             if (configuration.startupModel === 'cli-gui') {
                 await this.writeCoderOwnedFile(path.join(commands, 'Gui.cs'),
-`namespace ${ns}.Userland.Commands;
+`namespace Inu.Userland.Commands;
 
 /// <summary>
 /// Shell-visible GUI command. The CLI is the initial environment when CLI + GUI is selected;
