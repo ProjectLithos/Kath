@@ -144,7 +144,7 @@ $dotnet = Join-Path $KathRoot '..\Inu\.toolchain\DotNet\dotnet.exe'
 $launcherProject = Join-Path $KathRoot 'src\Kath.Launcher\Kath.Launcher.csproj'
 $launcherOut = Join-Path $KathRoot 'Artifacts\Launcher'
 $launcherExe = Join-Path $KathRoot 'Bin\Kath.exe'
-$launcherArguments = @('publish',$launcherProject,'-c','Release','-r','win-x64','--self-contained','true','-p:PublishSingleFile=true','-p:DebugType=None','-p:DebugSymbols=false','-o',$launcherOut)
+$launcherArguments = @('publish',$launcherProject,'-c','Release','-r','win-x64','--self-contained','true','-p:PublishSingleFile=true','-p:DebugType=None','-p:DebugSymbols=false',("-p:Version={0}" -f $KathVersion),("-p:AssemblyVersion={0}.0" -f $KathVersion),("-p:FileVersion={0}.0" -f $KathVersion),'-o',$launcherOut)
 $launcherInputs = @($stageHelper,$dotnet,(Join-Path $KathRoot 'Build-Kath.ps1')) + @(Get-InuProjectStageInputs -ProjectFile $launcherProject) + @((Get-InuStageFiles -Paths @((Join-Path (Split-Path -Parent $dotnet) 'sdk'),(Join-Path (Split-Path -Parent $dotnet) 'host'),(Join-Path (Split-Path -Parent $dotnet) 'shared')) -Outputs).FullName)
 Invoke-InuCachedAction -Stage 'Kath launcher' -CacheDirectory (Join-Path $KathRoot 'Artifacts\StageCache') -Inputs $launcherInputs -Outputs @($launcherExe,$launcherOut) -KeyArguments $launcherArguments -Force:$ForceRebuild -Action {
     $rc = Invoke-External $dotnet $launcherArguments $KathRoot

@@ -525,6 +525,10 @@ public static class Shell
         // Examples of ordinary SDK APIs; no Get/Set/Event calls are required here:
         // Console.Clear();
         // Console.WriteLine("Howdy");
+        // ConsolePresentation.SetForegroundRgb(232, 240, 248);
+        // ConsolePresentation.SetBackgroundRgb(9, 16, 24);
+        // ConsolePresentation.SetCaretMode(ConsoleCaretMode.Blinking);
+        // ConsolePresentation.SetCaretHeightPercent(8); // 1 = underline, 100 = full block
         // FileSystemPaths.SetPathSeparator(':');
         // FileSystemPaths.SetCommandsPaths(new[] { ":System:Commands", ":User:Commands" });
     }
