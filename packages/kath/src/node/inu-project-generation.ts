@@ -1628,6 +1628,12 @@ public static unsafe class Kernel
             if (project.kind !== 'kernel' && project.kind !== 'kernel-module') continue;
             for (const name of this.managedSdkProjectsForGeneratedProject(project)) {
                 required.add(name);
+                // Inu.Kernel.Console is a boot/runtime support dependency, not the owned
+                // implementation of the selected Boot node. Keeping it central allows SDK
+                // console ABI/presentation fixes to refresh without overwriting coder-owned
+                // architectural source. A coder can still explicitly materialise the console
+                // component when they want to own/replace it.
+                if (name === 'Inu.Kernel.Console') continue;
                 if (!owners.has(name)) owners.set(name, project.relativePath);
             }
         }
