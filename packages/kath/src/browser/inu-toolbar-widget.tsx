@@ -19,6 +19,32 @@ const RUN_MODE_STORAGE_KEY = 'inu.ide.runMode';
 const RUN_MODE_CHANGED_EVENT = 'inu-run-mode-changed';
 const OUTPUT_CHANNEL_NAME = 'Inu Build';
 
+/** Applies the small terminal subset emitted by Inu build progress: CR rewinds the current line so the next timer value overwrites it. */
+function applyInuTerminalText(existing: string, incoming: string): string {
+    if (!incoming.includes('\r')) { return existing + incoming; }
+    const chars = Array.from(existing);
+    let cursor = chars.length;
+    for (const ch of incoming) {
+        if (ch === '\r') {
+            let lineStart = cursor;
+            while (lineStart > 0 && chars[lineStart - 1] !== '\n') { lineStart--; }
+            cursor = lineStart;
+            continue;
+        }
+        if (ch === '\n') {
+            let lineEnd = cursor;
+            while (lineEnd < chars.length && chars[lineEnd] !== '\n') { lineEnd++; }
+            if (lineEnd < chars.length) { cursor = lineEnd + 1; }
+            else { chars.push('\n'); cursor = chars.length; }
+            continue;
+        }
+        if (cursor < chars.length && chars[cursor] !== '\n') { chars[cursor] = ch; }
+        else { chars.splice(cursor, 0, ch); }
+        cursor++;
+    }
+    return chars.join('');
+}
+
 @injectable()
 export class InuToolbarWidget extends ReactWidget {
     static readonly ID = 'inu.run.toolbar';
@@ -353,6 +379,9 @@ export class InuToolbarWidget extends ReactWidget {
         this.update();
         const channel = this.outputChannelManager.getChannel(OUTPUT_CHANNEL_NAME);
         channel.clear();
+        let outputTranscript = '';
+        const appendOutput = (text: string): void => { channel.append(text); outputTranscript += text; };
+        const appendOutputLine = (text: string): void => { const value = `${text}\n`; channel.append(value); outputTranscript += value; };
         this.problemsWidget.clear();
         channel.show({ preserveFocus: false });
         // Run/Debug output belongs to Theia's bottom Output panel.
@@ -360,17 +389,17 @@ export class InuToolbarWidget extends ReactWidget {
         // do not attach or activate it automatically, which would duplicate output.
         this.kernelConsole.clear();
         const consoleHeader = '';
-        channel.append(consoleHeader);
+        appendOutput(consoleHeader);
         this.kernelConsole.append(consoleHeader);
 
         try {
             const modeLabel = this.runMode === 'debug' ? 'Debug' : 'No Debug';
-            channel.appendLine(`[INFO] Inu ${modeLabel}: ${projectPath}`);
-            channel.appendLine('[INFO] Build and launch output follows.');
-            channel.appendLine('');
-            channel.appendLine('[INFO] Saving all modified files before build.');
+            appendOutputLine(`[INFO] Inu ${modeLabel}: ${projectPath}`);
+            appendOutputLine('[INFO] Build and launch output follows.');
+            appendOutputLine('');
+            appendOutputLine('[INFO] Saving all modified files before build.');
             await this.shell.saveAll();
-            channel.appendLine('[ OK ] All modified files saved.');
+            appendOutputLine('[ OK ] All modified files saved.');
             channel.appendLine('');
 
             const requestedBreakpoints = this.runMode === 'debug'
@@ -402,15 +431,21 @@ export class InuToolbarWidget extends ReactWidget {
                 const output = await this.projectService.readRunOutput(result.sessionId, offset);
                 if (output.text) {
                     if (output.text.includes('[FAIL]')) { failureAlreadyReported = true; }
-                    channel.append(output.text);
+                    if (output.text.includes('\r')) {
+                        outputTranscript = applyInuTerminalText(outputTranscript, output.text);
+                        channel.clear();
+                        channel.append(outputTranscript);
+                    } else {
+                        appendOutput(output.text);
+                    }
                     this.kernelConsole.append(output.text);
-                    this.problemsWidget.appendOutput(output.text);
+                    this.problemsWidget.appendOutput(output.text.replace(/\r[^\n]*/g, ''));
                 }
                 if (output.kernelText) {
                     // Full-output mode: guest/kernel serial remains in the dedicated
                     // Kernel Console and is also mirrored into the normal Inu Build
                     // output so Run/Debug has one complete chronological transcript.
-                    channel.append(output.kernelText);
+                    appendOutput(output.kernelText);
                     this.kernelConsole.append(output.kernelText);
                 }
                 offset = output.nextOffset;
@@ -432,19 +467,19 @@ export class InuToolbarWidget extends ReactWidget {
                 if (output.complete) {
                     this.problemsWidget.appendOutput('', true);
                     if (output.error && !failureAlreadyReported) {
-                        channel.appendLine(`\n[FAIL] ${output.error}`);
+                        appendOutputLine(`\n[FAIL] ${output.error}`);
                         this.kernelConsole.append(`\n[FAIL] ${output.error}\n`);
                         this.problemsWidget.addBuildFailure(output.error);
                         failureAlreadyReported = true;
                     }
                     if (output.exitCode === 0) {
                         const done = ''; 
-                        channel.append(done); this.kernelConsole.append(done);
+                        appendOutput(done); this.kernelConsole.append(done);
                     } else {
                         const exitCode = output.exitCode ?? -1;
                         if (!failureAlreadyReported) {
                             const failed = `\n[FAIL] Inu build/run command exited with code ${exitCode}.\n`;
-                            channel.append(failed); this.kernelConsole.append(failed);
+                            appendOutput(failed); this.kernelConsole.append(failed);
                             this.problemsWidget.appendOutput(failed, true);
                         }
                         await this.revealProblems();
@@ -457,7 +492,7 @@ export class InuToolbarWidget extends ReactWidget {
             }
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            channel.appendLine(`\n[FAIL] ${message}`);
+            appendOutputLine(`\n[FAIL] ${message}`);
             this.kernelConsole.append(`\n[FAIL] ${message}\n`);
             this.problemsWidget.addBuildFailure(message);
             await this.revealProblems();
