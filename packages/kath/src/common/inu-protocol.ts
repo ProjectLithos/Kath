@@ -991,6 +991,7 @@ export interface InuSdkReferenceSyncResult {
     projectFile?: string;
     references: string[];
     namespaces: string[];
+    missingUsings?: Array<{ symbol: string; namespace: string }>;
     ambiguous: string[];
     error?: string;
 }

@@ -42,6 +42,7 @@ export class InuEditorEnvironmentContribution implements FrontendApplicationCont
     protected systemThemeChangeListener: ((event: MediaQueryListEvent) => void) | undefined;
     protected documentContextMenuListener: ((event: MouseEvent) => void) | undefined;
     protected sdkCompletionProvider: monaco.IDisposable | undefined;
+    protected sdkCodeActionProvider: monaco.IDisposable | undefined;
     protected readonly sdkEditorDisposables = new Map<string, monaco.IDisposable[]>();
     protected readonly sdkSyncTimers = new Map<string, number>();
     protected readonly sdkApplyingImports = new Set<string>();
@@ -87,6 +88,8 @@ export class InuEditorEnvironmentContribution implements FrontendApplicationCont
         }
         this.sdkCompletionProvider?.dispose();
         this.sdkCompletionProvider = undefined;
+        this.sdkCodeActionProvider?.dispose();
+        this.sdkCodeActionProvider = undefined;
         for (const disposables of this.sdkEditorDisposables.values()) for (const disposable of disposables) disposable.dispose();
         this.sdkEditorDisposables.clear();
         for (const timer of this.sdkSyncTimers.values()) window.clearTimeout(timer);
@@ -212,6 +215,41 @@ export class InuEditorEnvironmentContribution implements FrontendApplicationCont
             }
         });
 
+        this.sdkCodeActionProvider = monaco.languages.registerCodeActionProvider('csharp', {
+            provideCodeActions: (model, _range, context) => {
+                const actions: monaco.languages.CodeAction[] = [];
+                for (const diagnostic of context.markers) {
+                    if (String(diagnostic.code ?? '') !== 'INU1009') continue;
+                    const match = /Add using ([A-Za-z_][A-Za-z0-9_.]*);/.exec(diagnostic.message);
+                    if (!match) continue;
+                    const namespace = match[1];
+                    const text = model.getValue();
+                    if (new RegExp(`^\\s*using\\s+${namespace.replace(/\./g, '\\.')}\\s*;`, 'm').test(text)) continue;
+                    const lines = text.split(/\r?\n/);
+                    let insertAfter = 0;
+                    for (let index = 0; index < lines.length; index++) {
+                        if (/^\s*using\s+[A-Za-z_][A-Za-z0-9_.]*\s*;/.test(lines[index])) insertAfter = index + 1;
+                        else if (insertAfter > 0 && lines[index].trim() !== '') break;
+                    }
+                    const line = insertAfter > 0 ? insertAfter + 1 : 1;
+                    actions.push({
+                        title: `Add using ${namespace};`,
+                        kind: 'quickfix',
+                        isPreferred: true,
+                        diagnostics: [diagnostic],
+                        edit: {
+                            edits: [{
+                                resource: model.uri,
+                                versionId: model.getVersionId(),
+                                textEdit: { range: new monaco.Range(line, 1, line, 1), text: `using ${namespace};\n` }
+                            }]
+                        }
+                    });
+                }
+                return { actions, dispose: () => undefined };
+            }
+        });
+
         const attachAll = () => {
             for (const editor of MonacoEditor.getAll(this.editorManager)) this.attachSdkReferenceSynchronization(editor);
         };
@@ -260,7 +298,7 @@ export class InuEditorEnvironmentContribution implements FrontendApplicationCont
         const model = editor.getControl().getModel();
         if (!model || !sourcePath.toLowerCase().endsWith('.cs')) return;
         const diagnostics: InuProblem[] = monaco.editor.getModelMarkers({ resource: model.uri })
-            .filter(marker => marker.owner === 'kath-csharp-syntax' || marker.owner === 'kath-inu-policy')
+            .filter(marker => marker.owner === 'kath-csharp-syntax' || marker.owner === 'kath-inu-policy' || marker.owner === 'kath-inu-usings')
             .map(marker => ({
                 severity: marker.severity === monaco.MarkerSeverity.Warning ? 'warning' : 'error',
                 filePath: sourcePath,
@@ -357,111 +395,168 @@ export class InuEditorEnvironmentContribution implements FrontendApplicationCont
         this.csharpSlashDecorations.set(key, control.deltaDecorations(old, decorations));
     }
 
+    protected maskCSharpComments(source: string, maskStrings = false): string {
+        const chars = source.split('');
+        let state: 'code' | 'line' | 'block' | 'string' | 'verbatim' | 'char' = 'code';
+        let escape = false;
+        for (let i = 0; i < chars.length; i++) {
+            const c = source[i], next = source[i + 1] ?? '';
+            const mask = () => { if (chars[i] !== '\r' && chars[i] !== '\n') chars[i] = ' '; };
+            if (state === 'line') { mask(); if (c === '\n') state = 'code'; continue; }
+            if (state === 'block') { mask(); if (c === '*' && next === '/') { if (i + 1 < chars.length) chars[i + 1] = ' '; i++; state = 'code'; } continue; }
+            if (state === 'string') {
+                if (maskStrings) mask();
+                if (escape) { escape = false; continue; }
+                if (c === '\\') { escape = true; continue; }
+                if (c === '"') state = 'code';
+                continue;
+            }
+            if (state === 'verbatim') {
+                if (maskStrings) mask();
+                if (c === '"' && next === '"') { if (maskStrings && i + 1 < chars.length) chars[i + 1] = ' '; i++; continue; }
+                if (c === '"') state = 'code';
+                continue;
+            }
+            if (state === 'char') {
+                if (maskStrings) mask();
+                if (escape) { escape = false; continue; }
+                if (c === '\\') { escape = true; continue; }
+                if (c === '\'') state = 'code';
+                continue;
+            }
+            if (c === '/' && next === '/') { mask(); if (i + 1 < chars.length) chars[i + 1] = ' '; i++; state = 'line'; continue; }
+            if (c === '/' && next === '*') { mask(); if (i + 1 < chars.length) chars[i + 1] = ' '; i++; state = 'block'; continue; }
+            if (c === '@' && next === '"') { if (maskStrings) { mask(); chars[i + 1] = ' '; } i++; state = 'verbatim'; continue; }
+            if (c === '"') { if (maskStrings) mask(); state = 'string'; continue; }
+            if (c === '\'') { if (maskStrings) mask(); state = 'char'; continue; }
+        }
+        return chars.join('');
+    }
+
+    protected operatingSystemSourceRoot(sourcePath: string): string {
+        const normalized = sourcePath.replace(/\\/g, '/');
+        const lower = normalized.toLowerCase();
+        const indexes = ['/kernel/', '/userland/', '/boot/'].map(token => lower.indexOf(token)).filter(index => index >= 0);
+        const cut = indexes.length > 0 ? Math.min(...indexes) : normalized.lastIndexOf('/');
+        return (cut >= 0 ? normalized.substring(0, cut) : normalized).toLowerCase();
+    }
+
     protected updateInuPathPolicyDiagnostics(editor: MonacoEditor): void {
         const sourcePath = editor.uri.path.fsPath();
         if (!sourcePath.toLowerCase().endsWith('.cs')) return;
-        const model = editor.getControl().getModel();
-        if (!model) return;
-        const text = model.getValue();
-        const markers: monaco.editor.IMarkerData[] = [];
-        const separatorCalls: Array<{ index: number; separator: string }> = [];
-        const separatorPattern = /\bFileSystemPaths\.SetPathSeparator\s*\(\s*'(\\.|[^'\\])'\s*\)/g;
-        let separatorMatch: RegExpExecArray | null;
-        while ((separatorMatch = separatorPattern.exec(text))) {
-            const token = separatorMatch[1];
-            const separator = token === '\\\\' ? '\\' : token === "\\'" ? "'" : token;
-            if (separator.length === 1) separatorCalls.push({ index: separatorMatch.index, separator });
-        }
+        const root = this.operatingSystemSourceRoot(sourcePath);
+        const scans = MonacoEditor.getAll(this.editorManager)
+            .filter(candidate => candidate.uri.path.fsPath().toLowerCase().endsWith('.cs') && this.operatingSystemSourceRoot(candidate.uri.path.fsPath()) === root)
+            .map(candidate => {
+                const model = candidate.getControl().getModel();
+                const text = model?.getValue() ?? '';
+                return { editor: candidate, model, text, active: this.maskCSharpComments(text) };
+            })
+            .filter(scan => !!scan.model);
 
-        const addMarker = (absoluteIndex: number, sourceLength: number, separator: string, invalid: string): void => {
-            const start = model.getPositionAt(absoluteIndex);
-            const end = model.getPositionAt(absoluteIndex + Math.max(1, sourceLength));
-            const shown = invalid === '\\' ? '\\\\' : invalid;
-            markers.push({
-                severity: monaco.MarkerSeverity.Error,
-                code: 'INU1007',
-                message: `Path uses '${shown}' as a separator, but FileSystemPaths.SetPathSeparator('${separator}') selected '${separator}' as the OS path separator.`,
-                startLineNumber: start.lineNumber,
-                startColumn: start.column,
-                endLineNumber: end.lineNumber,
-                endColumn: end.column
-            });
-        };
-
-        const inspectLiteral = (raw: string, absoluteStart: number, separator: string): void => {
-            const verbatim = raw.startsWith('@"');
-            const bodyStart = verbatim ? 2 : 1;
-            const bodyEnd = raw.length - 1;
-            for (let i = bodyStart; i < bodyEnd; i++) {
-                let value = raw[i];
-                let sourceLength = 1;
-                if (!verbatim && value === '\\' && i + 1 < bodyEnd) {
-                    if (raw[i + 1] === '\\') { value = '\\'; sourceLength = 2; }
-                    else { i++; continue; }
-                } else if (verbatim && value === '"' && raw[i + 1] === '"') {
-                    i++; continue;
-                }
-                const code = value.length === 1 ? value.charCodeAt(0) : 0;
-                const filenameFriendly = /[A-Za-z0-9._ -]/.test(value);
-                const separatorLike = code > 0 && code <= 0x7f && !filenameFriendly;
-                if (separatorLike && value !== separator) {
-                    addMarker(absoluteStart + i, sourceLength, separator, value);
-                    if (sourceLength === 2) i++;
+        type SeparatorCall = { scan: typeof scans[number]; index: number; separator: string; sourceLength: number; source: 'kernel' | 'userland' };
+        const calls: SeparatorCall[] = [];
+        const decode = (token: string) => token === '\\\\' ? '\\' : token === "\\'" ? "'" : token;
+        for (const scan of scans) {
+            const patterns: Array<{ source: 'kernel' | 'userland'; regex: RegExp }> = [
+                { source: 'kernel', regex: /\bFileSystem\.SetPathPolicy\s*\(\s*new\s+FileSystemPathPolicy\s*\(\s*'(\\.|[^'\\])'/g },
+                { source: 'userland', regex: /\bFileSystemPaths\.SetPathSeparator\s*\(\s*'(\\.|[^'\\])'\s*\)/g }
+            ];
+            for (const pattern of patterns) {
+                let match: RegExpExecArray | null;
+                while ((match = pattern.regex.exec(scan.active))) {
+                    const token = match[1], separator = decode(token);
+                    const literalOffset = match[0].indexOf(`'${token}'`);
+                    if (separator.length === 1 && literalOffset >= 0) calls.push({ scan, index: match.index + literalOffset + 1, separator, sourceLength: token.length, source: pattern.source });
                 }
             }
-        };
+        }
+        const kernel = calls.filter(call => call.source === 'kernel');
+        const selected = (kernel.length > 0 ? kernel[kernel.length - 1] : calls[calls.length - 1])?.separator;
 
-        const inspectCommandCall = (callIndex: number, body: string, bodyStart: number): void => {
-            let selected: string | undefined;
-            for (const item of separatorCalls) {
-                if (item.index >= callIndex) break;
-                selected = item.separator;
+        for (const scan of scans) {
+            const model = scan.model!;
+            const markers: monaco.editor.IMarkerData[] = [];
+            const addMarker = (absoluteIndex: number, sourceLength: number, code: string, message: string): void => {
+                const start = model.getPositionAt(absoluteIndex);
+                const end = model.getPositionAt(absoluteIndex + Math.max(1, sourceLength));
+                markers.push({ severity: monaco.MarkerSeverity.Error, code, message, startLineNumber: start.lineNumber, startColumn: start.column, endLineNumber: end.lineNumber, endColumn: end.column });
+            };
+            if (selected) {
+                for (const call of calls.filter(item => item.scan === scan && item.separator !== selected)) {
+                    addMarker(call.index, call.sourceLength, 'INU1008', `This active path-separator policy selects '${call.separator}', but the kernel path policy selects '${selected}'. Change the live setting to '${selected}'.`);
+                }
+                const inspectLiteral = (raw: string, absoluteStart: number): void => {
+                    const verbatim = raw.startsWith('@"');
+                    const bodyStart = verbatim ? 2 : 1, bodyEnd = raw.length - 1;
+                    for (let i = bodyStart; i < bodyEnd; i++) {
+                        let value = raw[i], sourceLength = 1;
+                        if (!verbatim && value === '\\' && i + 1 < bodyEnd) {
+                            if (raw[i + 1] === '\\') { value = '\\'; sourceLength = 2; }
+                            else { i++; continue; }
+                        } else if (verbatim && value === '"' && raw[i + 1] === '"') { i++; continue; }
+                        const code = value.length === 1 ? value.charCodeAt(0) : 0;
+                        const filenameFriendly = /[A-Za-z0-9._ -]/.test(value);
+                        const separatorLike = code > 0 && code <= 0x7f && !filenameFriendly;
+                        if (separatorLike && value !== selected) {
+                            const shown = value === '\\' ? '\\\\' : value;
+                            addMarker(absoluteStart + i, sourceLength, 'INU1007', `Path uses '${shown}' but the active kernel path separator is '${selected}'.`);
+                            if (sourceLength === 2) i++;
+                        }
+                    }
+                };
+                const literalPattern = /@"(?:[^"]|"")*"|"(?:\\.|[^"\\])*"/g;
+                const callPatterns = [
+                    /\bFileSystemPaths\.SetCommandsPaths\s*\(\s*new\s*\[\s*\]\s*\{([\s\S]*?)\}\s*\)/g,
+                    /\bFileSystemPaths\.SetCommandsPath\s*\(\s*(@"(?:[^"]|"")*"|"(?:\\.|[^"\\])*")\s*\)/g,
+                    /\bFileSystem\.SetLogicalPath\s*\([^,]+,\s*(@"(?:[^"]|"")*"|"(?:\\.|[^"\\])*")\s*\)/g
+                ];
+                for (const pattern of callPatterns) {
+                    let match: RegExpExecArray | null;
+                    while ((match = pattern.exec(scan.active))) {
+                        const body = match[1];
+                        const bodyStart = match.index + match[0].indexOf(body);
+                        let literal: RegExpExecArray | null;
+                        literalPattern.lastIndex = 0;
+                        while ((literal = literalPattern.exec(body))) inspectLiteral(literal[0], bodyStart + literal.index);
+                    }
+                }
             }
-            if (!selected) return;
-            const literalPattern = /@"(?:[^"]|"")*"|"(?:\\.|[^"\\])*"/g;
-            let literal: RegExpExecArray | null;
-            while ((literal = literalPattern.exec(body))) inspectLiteral(literal[0], bodyStart + literal.index, selected);
-        };
-
-        const pathsPattern = /\bFileSystemPaths\.SetCommandsPaths\s*\(\s*new\s*\[\s*\]\s*\{([\s\S]*?)\}\s*\)/g;
-        let pathsMatch: RegExpExecArray | null;
-        while ((pathsMatch = pathsPattern.exec(text))) {
-            const bodyStart = pathsMatch.index + pathsMatch[0].indexOf(pathsMatch[1]);
-            inspectCommandCall(pathsMatch.index, pathsMatch[1], bodyStart);
+            monaco.editor.setModelMarkers(model, 'kath-inu-policy', markers);
+            this.publishLiveDiagnostics(scan.editor);
         }
-        const pathPattern = /\bFileSystemPaths\.SetCommandsPath\s*\(\s*(@"(?:[^"]|"")*"|"(?:\\.|[^"\\])*")\s*\)/g;
-        let pathMatch: RegExpExecArray | null;
-        while ((pathMatch = pathPattern.exec(text))) {
-            const bodyStart = pathMatch.index + pathMatch[0].indexOf(pathMatch[1]);
-            inspectCommandCall(pathMatch.index, pathMatch[1], bodyStart);
-        }
-        monaco.editor.setModelMarkers(model, 'kath-inu-policy', markers);
     }
 
     protected async synchronizeSdkReferences(editor: MonacoEditor): Promise<void> {
         const sourcePath = editor.uri.path.fsPath();
-        const key = sourcePath.toLowerCase();
         const model = editor.getControl().getModel();
         if (!model || !sourcePath.toLowerCase().endsWith('.cs')) return;
         const result = await this.projectService.synchronizeSdkReferences(sourcePath, model.getValue());
-        if (!result.success || result.namespaces.length === 0) return;
-        const text = model.getValue();
-        const missing = result.namespaces.filter(namespace => !new RegExp(`^\\s*using\\s+${namespace.replace(/\./g, '\\.')}\\s*;`, 'm').test(text));
-        if (missing.length === 0) return;
-        this.sdkApplyingImports.add(key);
-        try {
-            const lines = text.split(/\r?\n/);
-            let insertAfter = 0;
-            for (let index = 0; index < lines.length; index++) {
-                if (/^\s*using\s+[A-Za-z_][A-Za-z0-9_.]*\s*;/.test(lines[index])) insertAfter = index + 1;
-                else if (insertAfter > 0 && lines[index].trim() !== '') break;
+        const markers: monaco.editor.IMarkerData[] = [];
+        if (result.success) {
+            const clean = this.maskCSharpComments(model.getValue(), true);
+            for (const missing of result.missingUsings ?? []) {
+                const pattern = new RegExp(`\\b${missing.symbol.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}\\b`, 'g');
+                let match: RegExpExecArray | null;
+                while ((match = pattern.exec(clean))) {
+                    const previous = match.index > 0 ? clean[match.index - 1] : '';
+                    if (previous === '.') continue;
+                    const start = model.getPositionAt(match.index);
+                    const end = model.getPositionAt(match.index + missing.symbol.length);
+                    markers.push({
+                        severity: monaco.MarkerSeverity.Error,
+                        code: 'INU1009',
+                        message: `The Inu SDK symbol '${missing.symbol}' is declared in namespace '${missing.namespace}'. Add using ${missing.namespace};`,
+                        startLineNumber: start.lineNumber,
+                        startColumn: start.column,
+                        endLineNumber: end.lineNumber,
+                        endColumn: end.column
+                    });
+                }
             }
-            const line = insertAfter > 0 ? insertAfter + 1 : 1;
-            const value = missing.map(namespace => `using ${namespace};`).join('\n') + '\n';
-            editor.getControl().executeEdits('inu-sdk-reference-resolver', [{ range: new monaco.Range(line, 1, line, 1), text: value, forceMoveMarkers: true }]);
-        } finally {
-            this.sdkApplyingImports.delete(key);
         }
+        monaco.editor.setModelMarkers(model, 'kath-inu-usings', markers);
+        this.publishLiveDiagnostics(editor);
     }
 
     protected installBreakpointInteraction(): void {

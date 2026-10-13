@@ -172,7 +172,7 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             .replace(/'(?:\\.|[^'\\])'/g, ' ');
     }
 
-    protected inferSdkReferences(source: string, symbols: InuSdkReferenceSymbol[]): { selected: InuSdkReferenceSymbol[]; namespaces: string[]; ambiguous: string[] } {
+    protected inferSdkReferences(source: string, symbols: InuSdkReferenceSymbol[]): { selected: InuSdkReferenceSymbol[]; namespaces: string[]; missingUsings: Array<{ symbol: string; namespace: string }>; ambiguous: string[] } {
         const clean = this.stripCSharpCommentsAndStrings(source);
         const imported = new Set(Array.from(clean.matchAll(/^\s*using\s+([A-Za-z_][A-Za-z0-9_.]*)\s*;/gm), match => match[1]));
         const declared = new Set(Array.from(clean.matchAll(/\b(?:class|struct|interface|enum|record)\s+([A-Za-z_][A-Za-z0-9_]*)/g), match => match[1]));
@@ -185,6 +185,7 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
         const selected = new Map<string, InuSdkReferenceSymbol>();
         const namespaces = new Set<string>();
         const ambiguous = new Set<string>();
+        const missingUsings = new Map<string, { symbol: string; namespace: string }>();
         for (const [name, candidates] of byName) {
             if (declared.has(name)) continue;
             const token = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
@@ -200,9 +201,12 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             }
             selected.set(chosen.project, chosen);
             const unqualified = new RegExp(`(^|[^.A-Za-z0-9_])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'm');
-            if (!imported.has(chosen.namespace) && unqualified.test(clean)) namespaces.add(chosen.namespace);
+            if (!imported.has(chosen.namespace) && unqualified.test(clean)) {
+                namespaces.add(chosen.namespace);
+                missingUsings.set(`${name}|${chosen.namespace}`, { symbol: name, namespace: chosen.namespace });
+            }
         }
-        return { selected: Array.from(selected.values()).sort((a, b) => a.project.localeCompare(b.project)), namespaces: Array.from(namespaces).sort(), ambiguous: Array.from(ambiguous).sort() };
+        return { selected: Array.from(selected.values()).sort((a, b) => a.project.localeCompare(b.project)), namespaces: Array.from(namespaces).sort(), missingUsings: Array.from(missingUsings.values()).sort((a, b) => a.symbol.localeCompare(b.symbol) || a.namespace.localeCompare(b.namespace)), ambiguous: Array.from(ambiguous).sort() };
     }
 
     protected async sourceFilesForProject(projectFile: string, projectRoot: string): Promise<string[]> {
@@ -298,7 +302,7 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
                 references: inferred.selected.map(item => ({ project: item.project, assembly: item.assembly, namespace: item.namespace })),
                 materialized: Array.from(materialized).sort()
             }, null, 2) + '\n', 'utf8');
-            return { success: true, projectFile, references: inferred.selected.map(item => item.project), namespaces: currentFile.namespaces, ambiguous: currentFile.ambiguous };
+            return { success: true, projectFile, references: inferred.selected.map(item => item.project), namespaces: currentFile.namespaces, missingUsings: currentFile.missingUsings, ambiguous: currentFile.ambiguous };
         } catch (error) {
             return { success: false, references: [], namespaces: [], ambiguous: [], error: error instanceof Error ? error.message : String(error) };
         }

@@ -512,6 +512,26 @@ public static class Boot
             : configuration.startupModel === 'cli' || configuration.startupModel === 'cli-gui'
                 ? `        return TextSession.Run();`
                 : '        return true;';
+        const kernelPolicy = configuration.projectKind === 'test-os'
+            ? `        Scheduler.SetQuantumMilliseconds(5);
+        Smp.SetRole(KernelCpuRole.Kernel, 0);
+        Smp.SetRole(KernelCpuRole.Userland, KernelCpuSet.All());
+        Console.SetBufferCount(0); // automatic; 1/2/3 select explicit buffering
+        FileSystem.SetPathPolicy(new FileSystemPathPolicy('/', false, 20, false, true, "*?<>|"));
+        FileSystem.SetLogicalPath(FileSystemLogicalPath.WritableUser, "/User");
+        FileSystem.SetLogicalPath(FileSystemLogicalPath.VisibleUser, "/User/{user}");
+        FileSystem.SetLogicalPath(FileSystemLogicalPath.Commands, "/System/Commands");`
+            : `        // This method owns post-bootstrap OS policy. Examples:
+        // Scheduler.SetQuantumMilliseconds(5);
+        // Smp.SetRole(KernelCpuRole.Kernel, 0);
+        // Smp.SetRole(KernelCpuRole.Userland, KernelCpuSet.All());
+        // Console.SetBufferCount(0); // automatic; 1/2/3 select explicit buffering
+        // FileSystem.SetPathPolicy(new FileSystemPathPolicy(':', false, 20, false, true, "*?<>|"));
+        // FileSystem.SetLogicalPath(FileSystemLogicalPath.WritableUser, ":User");
+        // FileSystem.SetLogicalPath(FileSystemLogicalPath.VisibleUser, ":User:{user}");
+        // FileSystem.SetLogicalPath(FileSystemLogicalPath.Commands, ":System:Commands");
+        // Processes.ConfigureGraphicalSession("/BIN/INU-DESKTOP.EXE", "/BIN/INU-LOGIN.EXE");
+        // Processes.StartGraphicalSession();`;
         await this.writeCoderOwnedFile(path.join(projectRoot, 'Kernel', osName, 'Kernel.cs'),
 `${kernelUsings}namespace ${ns}.Kernel;
 
@@ -525,17 +545,7 @@ public static class Kernel
 {
     public static Boolean Start()
     {
-        // This method owns post-bootstrap OS policy. Examples:
-        // Scheduler.SetQuantumMilliseconds(5);
-        // Smp.SetRole(KernelCpuRole.Kernel, 0);
-        // Smp.SetRole(KernelCpuRole.Userland, KernelCpuSet.All());
-        // Console.SetBufferCount(0); // automatic; 1/2/3 select explicit buffering
-        // FileSystem.SetPathPolicy(new FileSystemPathPolicy(':', false, 20, false, true, "*?<>|"));
-        // FileSystem.SetLogicalPath(FileSystemLogicalPath.WritableUser, ":User");
-        // FileSystem.SetLogicalPath(FileSystemLogicalPath.VisibleUser, ":User:{user}");
-        // FileSystem.SetLogicalPath(FileSystemLogicalPath.Commands, ":System:Commands");
-        // Processes.ConfigureGraphicalSession("/BIN/INU-DESKTOP.EXE", "/BIN/INU-LOGIN.EXE");
-        // Processes.StartGraphicalSession();
+${kernelPolicy}
         // Lifecycle facades remain available for FileSystem, Drivers, Graphics,
         // Input, Networking, Audio, Time and Power when those facilities are selected.
 ${kernelStartup}
@@ -558,7 +568,15 @@ public static class Shell
     /// <summary>Runs exactly once when the shell process first starts. Put one-time shell policy and startup output here.</summary>
     public static void Configure()
     {
-        // Examples of ordinary SDK APIs; no Get/Set/Event calls are required here:
+${configuration.projectKind === 'test-os' ? `        // Examples of ordinary SDK APIs; no Get/Set/Event calls are required here:
+        Console.Clear();
+        // Console.WriteLine("Howdy");
+        ConsolePresentation.SetForegroundRgb(0, 150, 0);
+        // ConsolePresentation.SetBackgroundRgb(9, 16, 24);
+        ConsolePresentation.SetCaretMode(ConsoleCaretMode.Blinking);
+        ConsolePresentation.SetCaretHeightPercent(8); // 1 = underline, 100 = full block
+        FileSystemPaths.SetPathSeparator('/');
+        FileSystemPaths.SetCommandsPaths(new[] { "/System/Commands", "/User/Commands" });` : `        // Examples of ordinary SDK APIs; no Get/Set/Event calls are required here:
         // Console.Clear();
         // Console.WriteLine("Howdy");
         // ConsolePresentation.SetForegroundRgb(232, 240, 248);
@@ -566,7 +584,7 @@ public static class Shell
         // ConsolePresentation.SetCaretMode(ConsoleCaretMode.Blinking);
         // ConsolePresentation.SetCaretHeightPercent(8); // 1 = underline, 100 = full block
         // FileSystemPaths.SetPathSeparator(':');
-        // FileSystemPaths.SetCommandsPaths(new[] { ":System:Commands", ":User:Commands" });
+        // FileSystemPaths.SetCommandsPaths(new[] { ":System:Commands", ":User:Commands" });`}
     }
 
     /// <summary>Owns the interactive shell loop. The shell supervisor may resume this resident process after a command, but Configure is not run again.</summary>
@@ -575,7 +593,7 @@ public static class Shell
         while (true)
         {
             Console.Write(Prompt);
-            String input = Console.ReadLine();
+            String input = Console.ReadCommandLine();
             if (String.IsNullOrWhiteSpace(input))
                 continue;
 
