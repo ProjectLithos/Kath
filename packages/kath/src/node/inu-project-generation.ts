@@ -552,8 +552,8 @@ namespace ${ns}.Userland;
 /// <summary>Coder-owned shell behaviour. Configure runs once for the lifetime of the shell; Run owns the visible command loop.</summary>
 public static class Shell
 {
-    /// <summary>The text displayed before each command line. Change this to customise the shell prompt.</summary>
-    public const string Prompt = "> ";
+    /// <summary>The text displayed before each command line. It is recomputed so cd is reflected immediately.</summary>
+    public static string Prompt => "[" + FileSystemPaths.GetCurrentWorkingDirectory() + "] > ";
 
     /// <summary>Runs exactly once when the shell process first starts. Put one-time shell policy and startup output here.</summary>
     public static void Configure()
