@@ -116,7 +116,8 @@ export class InuOsRegistry {
                 location: entry.location,
                 path: entry.location,
                 uri: pathToFileURL(entry.location).toString(),
-                instanceNumber: entry.instanceNumber
+                instanceNumber: entry.instanceNumber,
+                testOs: identity.testOs
             });
         }
 
@@ -189,7 +190,8 @@ export class InuOsRegistry {
             location: entry.location,
             path: entry.location,
             uri: pathToFileURL(entry.location).toString(),
-            instanceNumber: entry.instanceNumber
+            instanceNumber: entry.instanceNumber,
+            testOs: identity.testOs
         };
     }
 
@@ -223,12 +225,12 @@ export class InuOsRegistry {
         return path.resolve(projectPath).toLowerCase();
     }
 
-    protected async readProjectIdentity(projectRoot: string): Promise<{ name: string } | undefined> {
+    protected async readProjectIdentity(projectRoot: string): Promise<{ name: string; testOs: boolean } | undefined> {
         try {
             const configurationText = await fs.readFile(path.join(projectRoot, 'Inu.json'), 'utf8');
             const configuration = JSON.parse(configurationText) as Partial<InuProjectConfiguration>;
             const name = typeof configuration.name === 'string' && configuration.name.trim() ? configuration.name.trim() : path.basename(projectRoot);
-            return { name };
+            return { name, testOs: (configuration as any).projectKind === 'test-os' };
         } catch { return undefined; }
     }
 

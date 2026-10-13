@@ -13,7 +13,8 @@ import {
     KernelArchitecture,
     KathStartupModel,
     KathExecutableFormat,
-    InuQemuAccelerator
+    InuQemuAccelerator,
+    InuProjectKind
 } from '../common/inu-protocol';
 
 export const INU_WIDGET_ID = 'inu.project.configurator';
@@ -66,6 +67,7 @@ export class InuWidget extends BaseWidget {
     protected createDefaultConfiguration(): InuProjectConfiguration {
         return {
             schemaVersion: 9,
+            projectKind: 'operating-system',
             name: 'MyOs',
             author: 'The DCL Group',
             location: '',
@@ -182,6 +184,8 @@ export class InuWidget extends BaseWidget {
         card.appendChild(this.element('h1', undefined, 'Kath&Inu'));
         card.appendChild(this.element('p', undefined, 'Compose an editable operating system from Inu source components.'));
         card.appendChild(this.button('Create Operating System', 'theia-button main', () => void this.beginNewOperatingSystem()));
+        card.appendChild(this.button('Create SDK Test OS', 'theia-button secondary', () => void this.beginNewTestOperatingSystem()));
+        card.appendChild(this.element('p', 'inu-field-help', 'Test OS runs Inu’s full runtime/BCL/GC/ABI conformance and selected subsystem validation on every Run.'));
 
         const existing = this.element('section', 'inu-existing');
         existing.appendChild(this.element('h2', undefined, 'Open Existing OS'));
@@ -196,7 +200,7 @@ export class InuWidget extends BaseWidget {
                 controls.appendChild(this.button('Delete source code', 'theia-button secondary inu-os-delete', () => void this.deleteOperatingSystemSource(os)));
                 item.appendChild(controls);
                 const entry = this.button('', 'inu-os-entry', () => void this.openOperatingSystem(os));
-                entry.appendChild(this.element('strong', undefined, os.name));
+                entry.appendChild(this.element('strong', undefined, os.testOs ? `${os.name}  [TEST OS]` : os.name));
                 entry.appendChild(this.element('span', undefined, `ID: ${os.id}`));
                 entry.appendChild(this.element('span', undefined, `Location: ${os.location}`));
                 item.appendChild(entry);
@@ -218,6 +222,15 @@ export class InuWidget extends BaseWidget {
         card.appendChild(this.element('p', undefined, 'Kath asks for architecture and intent; implementation dependencies are resolved automatically.'));
 
         card.appendChild(this.configurationActions());
+
+        const purpose = this.fieldset('0. Project purpose');
+        purpose.appendChild(this.selectInput('Project kind', c.projectKind, [
+            ['operating-system','Operating system'], ['test-os','Test OS (SDK validation)']
+        ], value => { c.projectKind = value as InuProjectKind; if (c.projectKind === 'test-os') this.applyTestOsPreset(c); }));
+        purpose.appendChild(this.element('div', 'inu-field-help', c.projectKind === 'test-os'
+            ? 'TEST OS: full host reference + in-kernel managed/BCL/GC/ABI conformance is forced on every Run; selected SDK subsystems are validated before the session starts.'
+            : 'Normal OS: SDK conformance remains opt-in and does not add Release boot overhead.'));
+        card.appendChild(purpose);
 
         const identity = this.fieldset('1. OS identity');
         identity.appendChild(this.reconfiguringProjectPath ? this.readonlyPath('OS name', c.name) : this.textInput('OS name', c.name, value => c.name = value));
@@ -383,6 +396,25 @@ export class InuWidget extends BaseWidget {
         action.disabled = this.creating; actions.appendChild(action);
         if (this.generationStatus) actions.appendChild(this.element('div', 'inu-generation-status', this.generationStatus));
         return actions;
+    }
+
+    protected applyTestOsPreset(configuration: InuProjectConfiguration): void {
+        configuration.projectKind = 'test-os';
+        configuration.kernelArchitecture = 'monolithic';
+        configuration.startupModel = 'cli';
+        configuration.qemuAccelerator = 'auto';
+        configuration.qemuCpuCount = 4;
+        configuration.hardwareSupport = ['pci','acpi','serial-16550','virtio-console','virtio-rng','virtio-block','virtio-net','usb-xhci','usb-hid-keyboard','usb-hid-mouse','uefi-gop'];
+        configuration.debugging = ['serial-log','kernel-diagnostics'];
+        configuration.testing = [];
+    }
+
+    protected async beginNewTestOperatingSystem(): Promise<void> {
+        this.reconfiguringProjectPath = undefined; this.generationStatus = ''; this.configuration = this.createDefaultConfiguration();
+        this.applyTestOsPreset(this.configuration);
+        try { this.configuration.location = await this.projectService.getDefaultOperatingSystemLocation(); } catch { this.configuration.location = ''; }
+        try { this.configuration.name = await this.projectService.nextDefaultOperatingSystemName('InuSdkTestOS', this.configuration.location); } catch { this.configuration.name = 'InuSdkTestOS'; }
+        this.page = 'configuration'; this.renderContent();
     }
 
     protected async beginNewOperatingSystem(): Promise<void> {

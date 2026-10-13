@@ -3041,7 +3041,7 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             await fs.access(path.join(projectRoot, 'Inu.json'));
             const previousProjects = await this.readGeneratedProjectGraph(projectRoot);
             const generatedProjects = this.buildProjectGraph(authoritativeConfiguration);
-            const totalSteps = generatedProjects.length + 19;
+            const totalSteps = generatedProjects.length + 20;
             let completedSteps = 0;
             const advance = () => { completedSteps++; this.projectGenerationPercent = Math.min(99, Math.floor((completedSteps * 100) / totalSteps)); };
 
@@ -3071,6 +3071,7 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             await fs.writeFile(path.join(projectRoot, 'Run.bat'), this.runBatch(authoritativeConfiguration), 'utf8'); advance();
             await fs.writeFile(path.join(projectRoot, 'README.md'), this.projectReadme(authoritativeConfiguration, generatedProjects), 'utf8'); advance();
             await fs.writeFile(path.join(projectRoot, 'PUBLIC-SDK-USAGE.md'), this.publicSdkUsageGuide(authoritativeConfiguration), 'utf8'); advance();
+            await this.materializeTestOsMarker(projectRoot, authoritativeConfiguration); advance();
             await this.syncConfiguredQemuSettings(projectRoot, authoritativeConfiguration); advance();
             this.projectGenerationPercent = 100;
             return { success: true, projectPath: projectRoot, generatedProjects: generatedProjects.map(project => project.id) };
@@ -3095,7 +3096,7 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             // generated manifests, source tree and running OS must also say MyOs1-10.
             authoritativeConfiguration.name = allocation.name;
             const generatedProjects = this.buildProjectGraph(authoritativeConfiguration);
-            const totalSteps = generatedProjects.length + 20;
+            const totalSteps = generatedProjects.length + 21;
             let completedSteps = 0;
             const advance = () => { completedSteps++; this.projectGenerationPercent = Math.min(99, Math.floor((completedSteps * 100) / totalSteps)); };
 
@@ -3124,6 +3125,7 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             await fs.writeFile(path.join(projectRoot, 'Run.bat'), this.runBatch(authoritativeConfiguration), 'utf8'); advance();
             await fs.writeFile(path.join(projectRoot, 'README.md'), this.projectReadme(authoritativeConfiguration, generatedProjects), 'utf8'); advance();
             await fs.writeFile(path.join(projectRoot, 'PUBLIC-SDK-USAGE.md'), this.publicSdkUsageGuide(authoritativeConfiguration), 'utf8'); advance();
+            await this.materializeTestOsMarker(projectRoot, authoritativeConfiguration); advance();
             await this.syncConfiguredQemuSettings(projectRoot, authoritativeConfiguration); advance();
             await this.osRegistry.registerProject(projectRoot); advance();
             this.projectGenerationPercent = 100;
@@ -3284,6 +3286,7 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
         await fs.writeFile(path.join(projectRoot, 'Run.bat'), this.runBatch(configuration), 'utf8');
         await fs.writeFile(path.join(projectRoot, 'README.md'), this.projectReadme(configuration, projects), 'utf8');
         await fs.writeFile(path.join(projectRoot, 'PUBLIC-SDK-USAGE.md'), this.publicSdkUsageGuide(configuration), 'utf8');
+        await this.materializeTestOsMarker(projectRoot, configuration);
         await this.syncConfiguredQemuSettings(projectRoot, configuration);
     }
 

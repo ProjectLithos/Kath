@@ -20,6 +20,7 @@ export type AudioModel = 'none' | 'hda' | 'ac97';
 export type VirtualisationModel = 'none' | 'guest' | 'hypervisor';
 export type SafetyProfile = 'general' | 'rtos' | 'safety-critical';
 export type InuQemuAccelerator = 'auto' | 'whpx' | 'kvm' | 'hvf' | 'tcg';
+export type InuProjectKind = 'operating-system' | 'test-os';
 
 /** Legacy execution-role settings retained only so existing 0.2.x projects can still be opened. */
 export interface InuCpuRoleAssignments {
@@ -45,6 +46,7 @@ export interface InuCpuRoleAssignments {
  */
 export interface InuProjectConfiguration {
     schemaVersion: 9;
+    projectKind: InuProjectKind;
     name: string;
     author: string;
     location: string;
@@ -100,6 +102,7 @@ export interface InuOperatingSystem {
     path: string;
     uri: string;
     instanceNumber: number;
+    testOs: boolean;
 }
 
 export type InuRunMode = 'run' | 'debug';
