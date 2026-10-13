@@ -405,6 +405,11 @@ export class InuWidget extends BaseWidget {
         configuration.qemuAccelerator = 'auto';
         configuration.qemuCpuCount = 4;
         configuration.hardwareSupport = ['pci','acpi','serial-16550','virtio-console','virtio-rng','virtio-block','virtio-net','usb-xhci','usb-hid-keyboard','usb-hid-mouse','uefi-gop'];
+        // A Test OS is intentionally broad. Keep a real filesystem selected so its kernel-facing
+        // path-policy/logical-path API and FAT32 implementation are compiled and eligible for
+        // Debug validation rather than leaving the test kernel with filesystem examples but no
+        // selected filesystem service.
+        configuration.filesystem = 'fat32';
         configuration.debugging = ['serial-log','kernel-diagnostics'];
         configuration.testing = [];
     }

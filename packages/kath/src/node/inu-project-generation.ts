@@ -414,7 +414,11 @@ export abstract class InuProjectGenerationSupport {
         if (areas.Scheduler) directives.push('using Inu.Kernel.Scheduler;');
         if (configuration.smp) directives.push('using Inu.Kernel.Smp;');
         if (areas.Drivers) { directives.push('using Inu.Kernel.Drivers;'); directives.push('using Inu.Kernel.Hardware;'); }
-        if (areas.Storage || areas.Filesystems) directives.push('using Inu.Kernel.Storage;');
+        // The SDK Test OS deliberately exercises the kernel-facing storage/filesystem facade even
+        // when the selected kernel topology is Microkernel. Inu.Kernel.Storage is already part of
+        // the central kernel source plan; importing it here makes the validation surface available
+        // without changing normal OS ownership/placement rules.
+        if (configuration.projectKind === 'test-os' || areas.Storage || areas.Filesystems) directives.push('using Inu.Kernel.Storage;');
         if (configuration.graphics.length > 0) directives.push('using Inu.Kernel.Graphics;');
         if (areas.Input) directives.push('using Inu.Kernel.Input;');
         if (areas.Networking) directives.push('using Inu.Kernel.Networking;');
