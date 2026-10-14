@@ -1367,11 +1367,14 @@ public static unsafe class Kernel
         return {
             Shell: false,
             GUI: false,
-            Drivers: monolithic || hybrid || customKernelHardware,
+            Drivers: monolithic || hybrid || (model === 'Microkernel' && configuration.storageControllers.length > 0) || customKernelHardware,
             HAL: true,
             Audio: false,
-            Filesystems: (monolithic || (custom && this.customExecutionArea(configuration, 'service:filesystem') === 'kernel')) && configuration.filesystem !== 'none',
-            Storage: (monolithic || (custom && configuration.storageControllers.some(value => this.customExecutionArea(configuration, `hardware:${value}`) === 'kernel'))) && configuration.storageControllers.length > 0,
+            Filesystems: configuration.filesystem !== 'none' && (monolithic || hybrid || model === 'Microkernel' || (custom && this.customExecutionArea(configuration, 'service:filesystem') === 'kernel')),
+            // Until the replaceable ring-3 storage-service transport is complete, the selected block-driver/VFS
+            // mechanism remains kernel-resident for every model. This keeps a Microkernel usable without
+            // turning filesystem policy or applications into kernel code.
+            Storage: configuration.storageControllers.length > 0 && (monolithic || hybrid || model === 'Microkernel' || (custom && configuration.storageControllers.some(value => this.customExecutionArea(configuration, `hardware:${value}`) === 'kernel'))),
             Networking: (monolithic || (custom && this.customExecutionArea(configuration, 'service:networking') === 'kernel')) && configuration.networkStack !== 'none',
             // Inu's currently implemented PS/2 and USB HID providers are kernel mechanisms.
             // When the OS author selects them, materialize those mechanisms even for a microkernel
