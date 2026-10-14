@@ -3,6 +3,8 @@ import { inject, injectable, postConstruct } from 'inversify';
 import { FileUri } from '@theia/core/lib/common/file-uri';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import { EditorManager } from '@theia/editor/lib/browser';
+import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
+import { FileService } from '@theia/filesystem/lib/browser/file-service';
 
 export type InuProblemSeverity = 'error' | 'warning';
 
@@ -22,6 +24,12 @@ export class InuProblemsWidget extends ReactWidget {
 
     @inject(EditorManager)
     protected readonly editorManager!: EditorManager;
+
+    @inject(WorkspaceService)
+    protected readonly workspaceService!: WorkspaceService;
+
+    @inject(FileService)
+    protected readonly fileService!: FileService;
 
     protected problems: InuProblem[] = [];
     protected readonly liveProblems = new Map<string, InuProblem[]>();
@@ -191,13 +199,63 @@ export class InuProblemsWidget extends ReactWidget {
     protected async openProblem(problem: InuProblem): Promise<void> {
         if (!problem.filePath || !problem.line) return;
         try {
-            const editor = await this.editorManager.open(FileUri.create(problem.filePath));
+            // Diagnostics for a file already in the OS project always navigate to that
+            // exact file. External SDK source is materialised as a visible, OS-owned copy
+            // beneath Kernel/<OSName>/SDKSource; it is never edited through an external
+            // workspace root and is not compiled until the user deliberately integrates it.
+            const targetPath = await this.materializeSdkDiagnosticSource(problem.filePath);
+            const editor = await this.editorManager.open(FileUri.create(targetPath));
             const position = { line: Math.max(0, problem.line - 1), character: Math.max(0, (problem.column ?? 1) - 1) };
             editor.editor.cursor = position;
             editor.editor.revealPosition(position);
         } catch {
             // Keep the Problems list usable even if a stale diagnostic points to a removed file.
         }
+    }
+
+    protected async materializeSdkDiagnosticSource(filePath: string): Promise<string> {
+        const normalized = filePath.replace(/\\/g, '/');
+        const roots = this.workspaceService.tryGetRoots();
+        const workspaceRoots = roots.map(root => root.resource.path.fsPath().replace(/\\/g, '/').replace(/\/$/, ''));
+        const existingWorkspaceRoot = workspaceRoots.find(root => {
+            const key = root.toLowerCase();
+            const candidate = normalized.toLowerCase();
+            return candidate === key || candidate.startsWith(`${key}/`);
+        });
+        if (existingWorkspaceRoot) return filePath;
+
+        const marker = '/Inu/SDK/';
+        const index = normalized.toLowerCase().indexOf(marker.toLowerCase());
+        if (index < 0) return filePath;
+        const relativeSdkPath = normalized.slice(index + marker.length);
+        if (relativeSdkPath.split('/').some(part => !part || part === '.' || part === '..')) return filePath;
+        const osRoot = roots.find(root => !root.resource.path.fsPath().replace(/\\/g, '/').toLowerCase().includes('/inu/sdk'));
+        if (!osRoot) return filePath;
+
+        let osName = 'OS';
+        const manifestUri = osRoot.resource.resolve('InuProject.json');
+        try {
+            const manifestContent = await this.fileService.read(manifestUri);
+            const manifest = JSON.parse(manifestContent.value) as { Name?: unknown; name?: unknown };
+            const name = typeof manifest.Name === 'string' ? manifest.Name : typeof manifest.name === 'string' ? manifest.name : '';
+            if (name.trim()) osName = name.trim().replace(/[<>:"/\\|?*]/g, '_');
+        } catch {
+            // Older projects may not have a readable InuProject.json; use a safe folder.
+        }
+
+        const targetPath = `${osRoot.resource.path.fsPath().replace(/[\\/]+$/, '')}/Kernel/${osName}/SDKSource/${relativeSdkPath}`;
+        const targetUri = FileUri.create(targetPath);
+        try {
+            await this.fileService.resolve(targetUri);
+            return targetPath; // Preserve OS-owned edits; never refresh an existing copy.
+        } catch {
+            // The copy does not exist yet.
+        }
+
+        const targetDirectory = targetPath.slice(0, targetPath.lastIndexOf('/'));
+        await this.fileService.createFolder(FileUri.create(targetDirectory));
+        await this.fileService.copy(FileUri.create(filePath), targetUri, { overwrite: false });
+        return targetPath;
     }
 
     protected shortFile(filePath?: string): string {

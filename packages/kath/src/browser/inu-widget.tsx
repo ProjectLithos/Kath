@@ -305,7 +305,7 @@ export class InuWidget extends BaseWidget {
 
         card.appendChild(this.configurationActions());
         const note = this.element('div', 'inu-note');
-        note.textContent = 'Generated source is partitioned by execution area: Boot, Kernel and Userland. SDK-managed implementation folders are hidden from the normal source explorer; the OS-named coder areas remain visible and are never silently overwritten.';
+        note.textContent = 'Generated source is partitioned by execution area: Boot, Kernel and Userland. SDK diagnostic source is copied once into Kernel/<OSName>/SDKSource for inspection and editing; existing copies are preserved and excluded from compilation until deliberately integrated.';
         card.appendChild(note);
         page.appendChild(card);
         this.node.appendChild(page);

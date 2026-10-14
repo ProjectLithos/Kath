@@ -354,8 +354,8 @@ export abstract class InuProjectGenerationSupport {
             await fs.mkdir(path.join(projectRoot, area, osName), { recursive: true });
         }
 
-        // SDK implementation remains on disk and in the build, but Kath's workspace explorer
-        // hides it so OS authors see the source they actually own by default.
+        // SDK-provided source is part of the generated project and must remain visible so
+        // OS authors can inspect the implementation. Keep any unrelated user excludes.
         const theiaDirectory = path.join(projectRoot, '.theia');
         const settingsFile = path.join(theiaDirectory, 'settings.json');
         let settings: Record<string, unknown> = {};
@@ -363,34 +363,17 @@ export abstract class InuProjectGenerationSupport {
         const excludes = (settings['files.exclude'] && typeof settings['files.exclude'] === 'object')
             ? settings['files.exclude'] as Record<string, boolean>
             : {};
-        excludes['**/Provided'] = true;
+        delete excludes['**/Provided'];
         settings['files.exclude'] = excludes;
         await fs.mkdir(theiaDirectory, { recursive: true });
         await fs.writeFile(settingsFile, JSON.stringify(settings, null, 2) + '\n', 'utf8');
     }
 
     protected async writeCoderOwnedFile(filePath: string, source: string): Promise<void> {
-        let exists = false;
-        try { await fs.access(filePath); exists = true; } catch { }
-        if (exists) {
-            if (path.basename(filePath) === 'Echo.cs') {
-                // Repair only the literal newline emitted by the old Echo template.
-                // Preserve every other edit in this coder-owned source file.
-                const current = await fs.readFile(filePath, 'utf8');
-                const repaired = current.replace(/return UserlandConsole\.Write\("\r?\n"\)\?0:3;/g,
-                    'return UserlandConsole.Write("\\n")?0:3;');
-                if (repaired !== current) await fs.writeFile(filePath, repaired, 'utf8');
-            }
-            if (path.basename(filePath) === 'SysInfo.cs') {
-                const current = await fs.readFile(filePath, 'utf8');
-                const ns = /namespace ([A-Za-z_][A-Za-z0-9_.]*);/.exec(current)?.[1];
-                const shipped = ns ? "namespace ${ns};\n\n/// <summary>\n/// Editable system-information executable. The working implementation should query the kernel\n/// hardware inventory and report detected hardware separately from driver/support state, e.g.\n/// \"NVMe: Present\" and \"NVMe driver: Missing\".\n/// </summary>\npublic static class SysInfo\n{\n    public static int Main()\n    {\n        return global::Inu.Userland.Runtime.UserlandConsole.WriteLine(\"Hardware/support inventory will be supplied by SysInfo item 3.\")?0:1;\n    }\n}\n" : '';
-                if (ns && current.trim() === shipped.replace('${ns}', ns).trim()) {
-                    await fs.writeFile(filePath, source.replace(/namespace [A-Za-z_][A-Za-z0-9_.]*;/, `namespace ${ns};`), 'utf8');
-                }
-            }
-            return;
-        }
+        try {
+            await fs.access(filePath);
+            return; // Existing OS-owned source is never migrated or repaired during refresh.
+        } catch { }
         await fs.mkdir(path.dirname(filePath), { recursive: true });
         await fs.writeFile(filePath, source, 'utf8');
     }
