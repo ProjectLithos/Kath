@@ -86,6 +86,7 @@ export class InuToolbarWidget extends ReactWidget {
     protected runButtonUnlockTimer: number | undefined;
     protected stopRequested = false;
     protected cancelPendingSession = false;
+    protected buildElapsedSeconds: number | undefined;
     protected debugState: InuDebugState = { active: false, paused: false, sourceSymbols: false };
     protected lastRevealedStop = '';
     protected breakpointsArmedForSession: string | undefined;
@@ -162,6 +163,9 @@ export class InuToolbarWidget extends ReactWidget {
                 <option value='run'>No Debug</option>
                 <option value='debug'>Debug</option>
             </select>
+            {this.buildElapsedSeconds !== undefined && <span className='inu-build-elapsed-status' title='Elapsed time for the current Inu build stage'>
+                Build <strong key={this.buildElapsedSeconds} className='inu-build-elapsed-value'>{this.buildElapsedSeconds}s</strong>
+            </span>}
             {debug && <div className='inu-debug-controls' aria-label='Inu debugger controls'>
                 <button className='inu-debug-button inu-breakpoint-button' disabled={!canSetBreakpoint} title='Toggle breakpoint on the current source line (also click the far-left editor gutter)' onClick={() => this.toggleBreakpoint()}>
                     <span className='codicon codicon-debug-breakpoint' aria-hidden='true'></span>
@@ -365,6 +369,20 @@ export class InuToolbarWidget extends ReactWidget {
         }
     }
 
+    protected updateBuildElapsedFromOutput(text: string): void {
+        const pattern = /(\d+)s elapsed/g;
+        let match: RegExpExecArray | null;
+        let latest: number | undefined;
+        while ((match = pattern.exec(text)) !== null) {
+            latest = Number(match[1]);
+        }
+        if (latest === undefined || !Number.isFinite(latest) || latest === this.buildElapsedSeconds) {
+            return;
+        }
+        this.buildElapsedSeconds = latest;
+        this.update();
+    }
+
     protected async runCurrentOperatingSystem(): Promise<void> {
         const projectPath = this.currentProjectPath();
         if (!projectPath || this.launching || this.sessionId) {
@@ -375,6 +393,7 @@ export class InuToolbarWidget extends ReactWidget {
         this.launching = true;
         this.stopRequested = false;
         this.cancelPendingSession = false;
+        this.buildElapsedSeconds = undefined;
         this.debugState = { active: false, paused: false, sourceSymbols: false };
         this.update();
         const channel = this.outputChannelManager.getChannel(OUTPUT_CHANNEL_NAME);
@@ -431,6 +450,7 @@ export class InuToolbarWidget extends ReactWidget {
                 const output = await this.projectService.readRunOutput(result.sessionId, offset);
                 if (output.text) {
                     if (output.text.includes('[FAIL]')) { failureAlreadyReported = true; }
+                    this.updateBuildElapsedFromOutput(output.text);
                     if (output.text.includes('\r')) {
                         outputTranscript = applyInuTerminalText(outputTranscript, output.text);
                         channel.clear();
@@ -502,6 +522,7 @@ export class InuToolbarWidget extends ReactWidget {
             this.sessionId = undefined;
             this.stopRequested = false;
             this.cancelPendingSession = false;
+            this.buildElapsedSeconds = undefined;
             this.debugInspector.setSession(undefined);
             this.breakpointManager.setSession(undefined);
             this.debugState = { active: false, paused: false, sourceSymbols: false };

@@ -141,6 +141,32 @@
     height: 28px;
     box-sizing: border-box;
 }
+.inu-build-elapsed-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 24px;
+    padding: 0 6px;
+    border: 1px solid var(--theia-panel-border);
+    border-radius: 4px;
+    color: var(--theia-descriptionForeground);
+    font-size: 12px;
+    white-space: nowrap;
+}
+.inu-build-elapsed-value {
+    min-width: 2.8em;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--theia-editor-findMatchHighlightBackground, var(--theia-badge-background));
+    color: var(--theia-editor-findMatchHighlightForeground, var(--theia-badge-foreground));
+    font-weight: 700;
+    text-align: center;
+    animation: inu-build-elapsed-change .18s ease-out;
+}
+@keyframes inu-build-elapsed-change {
+    from { transform: scale(1.12); filter: brightness(1.25); }
+    to { transform: scale(1); filter: none; }
+}
 .inu-debug-controls {
     display: inline-flex;
     align-items: center;

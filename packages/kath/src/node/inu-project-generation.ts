@@ -542,7 +542,7 @@ using Inu.Userland.Runtime;
 
 namespace ${ns}.Userland;
 
-/// <summary>Coder-owned shell behaviour. Configure runs once for the lifetime of the shell; Run owns the visible command loop.</summary>
+/// <summary>Coder-owned shell behaviour. Configure runs once; Run performs one visible command iteration.</summary>
 public static class Shell
 {
     /// <summary>The text displayed before each command line. It is recomputed so cd is reflected immediately.</summary>
@@ -570,21 +570,19 @@ ${configuration.projectKind === 'test-os' ? `        // Examples of ordinary SDK
         // FileSystemPaths.SetCommandsPaths(new[] { ":System:Commands", ":User:Commands" });`}
     }
 
-    /// <summary>Owns the interactive shell loop. The shell supervisor may resume this resident process after a command, but Configure is not run again.</summary>
+    /// <summary>Performs one interactive shell iteration. InuShell owns the lifetime loop and calls this method repeatedly.</summary>
     public static void Run()
     {
-        while (true)
-        {
             Console.Write(Prompt);
             String input = Console.ReadCommandLine();
             if (String.IsNullOrWhiteSpace(input))
-                continue;
+                return;
 
             Int32 start = 0;
             Int32 end = input.Length;
             while (start < end && input[start] == ' ') start++;
             while (end > start && input[end - 1] == ' ') end--;
-            if (start == end) continue;
+            if (start == end) return;
 
             Int32 split = start;
             while (split < end && input[split] != ' ') split++;
@@ -598,7 +596,6 @@ ${configuration.projectKind === 'test-os' ? `        // Examples of ordinary SDK
             // The coder-facing shell never needs to know about Get/Set/Event transport.
             if (!Process.TryStart(command, arguments))
                 Console.WriteLine("Command not found.");
-        }
     }
 }
 `);
