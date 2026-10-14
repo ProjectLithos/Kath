@@ -123,7 +123,7 @@ What `Kath\Build-Kath.ps1` does:
 
 Running Kath: `Run-Kath.bat` (root) starts `Kath\Bin\Kath.exe`, which locates the Kath directory and runs `Kath\Run-Kath.bat`. That script sets `KATH_ROOT` and `INU_SDK_ROOT`, puts the private Node and Python on `PATH`, and starts the Electron app through `npm run start --workspace @kath/electron`. If anything is missing it prints "has not been built completely" and tells you to run the root `Build.bat`.
 
-> **A successful root build publishes to GitHub.** After a good build, `Build.ps1` runs `Kath\Publish-GitHub.ps1`, which commits and pushes this source tree to `https://github.com/ProjectLithos/Kath.git` (Inu goes to `ProjectLithos/Inu`). This requires `git` and push access. If you are working on a fork or just experimenting, edit the `$RepositoryUrl` in the `Publish-GitHub.ps1` scripts or remove that step from `Build.ps1` first.
+> **A successful root build attempts to publish to GitHub after the local build has completed.** The publisher is non-interactive and time-bounded, excludes generated `bin`/`obj`/`lib`/`src-gen`/toolchain outputs, and removes build artifacts that an older release accidentally tracked. GitHub authentication, connectivity or remote-history failure is reported as a publish warning without invalidating the successful local build.
 
 Generated output (`lib`, `src-gen`, `node_modules`, `.toolchain`, `Bin`, `Artifacts`) is not source; the build recreates or preserves it as appropriate.
 
@@ -227,7 +227,7 @@ Kath/
 ├── Build-Kath.bat/.ps1      Build Kath (toolchain, npm workspace, stages, launcher)
 ├── Run-Kath.bat             Start the IDE
 ├── Publish-GitHub.ps1       Publish this source tree after a successful build
-├── VERSION                  Product version (must equal Inu\VERSION)
+├── (version comes from ..\VERSION)
 ├── JSON/
 │   ├── package.json         Workspace manifest: Theia 1.74.1, Electron 42.3.0, Node >=22 <23
 │   ├── Toolchain-Versions.json  Pinned Node, Python and Visual Studio requirements

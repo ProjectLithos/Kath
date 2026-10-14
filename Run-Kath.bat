@@ -3,7 +3,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 set "KATH_ROOT=%~dp0"
 set "KATH_ROOT=%KATH_ROOT:~0,-1%"
-set /p KATH_VERSION=<"%KATH_ROOT%\VERSION"
+set /p KATH_VERSION=<"%KATH_ROOT%\..\VERSION"
 set "KATH_NPM=%KATH_ROOT%\.toolchain\Node\npm.cmd"
 set "KATH_NODE=%KATH_ROOT%\.toolchain\Node\node.exe"
 set "KATH_PYTHON=%KATH_ROOT%\.toolchain\Python\python.exe"

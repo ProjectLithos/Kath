@@ -5,9 +5,10 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $KathRoot = [IO.Path]::GetFullPath($PSScriptRoot).TrimEnd('\')
-$VersionPath = Join-Path $KathRoot 'VERSION'
+$ProductRoot = Split-Path -Parent $KathRoot
+$VersionPath = Join-Path $ProductRoot 'VERSION'
 if (-not (Test-Path -LiteralPath $VersionPath -PathType Leaf)) {
-    throw "[FAIL] Kath VERSION is missing."
+    throw "[FAIL] Kath&Inu root VERSION is missing."
 }
 $KathVersion = (Get-Content -LiteralPath $VersionPath -TotalCount 1).Trim()
 

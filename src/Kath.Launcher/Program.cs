@@ -17,7 +17,7 @@ internal static class Program
         }
 
         string launcher = Path.Combine(kathRoot, "Run-Kath.bat");
-        string versionFile = Path.Combine(kathRoot, "VERSION");
+        string versionFile = Path.Combine(Directory.GetParent(kathRoot)?.FullName ?? kathRoot, "VERSION");
         string launcherVersion = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "unknown";
         string sourceVersion = File.Exists(versionFile) ? (File.ReadLines(versionFile).FirstOrDefault() ?? "").Trim() : "";
         if (!string.Equals(sourceVersion, launcherVersion, StringComparison.OrdinalIgnoreCase))
@@ -46,7 +46,7 @@ internal static class Program
     }
 
     private static bool IsKathRoot(string path) =>
-        File.Exists(Path.Combine(path, "VERSION")) && File.Exists(Path.Combine(path, "Run-Kath.bat"));
+        File.Exists(Path.Combine(Directory.GetParent(path)?.FullName ?? path, "VERSION")) && File.Exists(Path.Combine(path, "Run-Kath.bat"));
 
     private static void ShowError(string message) =>
         System.Windows.Forms.MessageBox.Show(message, "Kath", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);

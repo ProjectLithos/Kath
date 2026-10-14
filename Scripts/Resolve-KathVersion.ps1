@@ -8,7 +8,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $PSScriptRoot
-$versionPath = Join-Path $root 'VERSION'
+$versionPath = Join-Path (Split-Path -Parent $root) 'VERSION'
 if (-not (Test-Path -LiteralPath $versionPath)) {
     Write-Host '[FAIL] VERSION is missing; Kath cannot determine the release version.'
     exit 1

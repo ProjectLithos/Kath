@@ -13,18 +13,73 @@ function Fail([string]$m){ Write-Host "[FAIL] $m"; exit 1 }
 # Windows PowerShell turns native stderr into ErrorRecord objects. Expected
 # nonzero probe results (missing origin/identity/HEAD) must reach our exit checks.
 # Keep this preference local and capture diagnostics for real command failures.
-function Invoke-GitResult([string[]]$a){
-    $ErrorActionPreference='Continue'
-    $PSNativeCommandUseErrorActionPreference=$false
-    $lines=@(& $script:GitExe -C $SourceRoot @a 2>&1)
-    $code=$LASTEXITCODE
-    return [pscustomobject]@{ ExitCode=$code; Lines=@($lines | ForEach-Object { [string]$_ }) }
+function Quote-NativeArgument([string]$value){
+    if($null -eq $value){ return '""' }
+    if($value.Length -gt 0 -and $value -notmatch '[\s"]'){ return $value }
+    $escaped=[regex]::Replace($value,'(\\*)"','$1$1\"')
+    $escaped=[regex]::Replace($escaped,'(\\+)$','$1$1')
+    return '"' + $escaped + '"'
 }
-function Git([string[]]$a){
-    $result=Invoke-GitResult -a $a
+function Invoke-GitResult([string[]]$a, [int]$TimeoutSeconds=30){
+    $psi=New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName=$script:GitExe
+    $psi.WorkingDirectory=$SourceRoot
+    $psi.UseShellExecute=$false
+    $psi.CreateNoWindow=$true
+    $psi.RedirectStandardOutput=$true
+    $psi.RedirectStandardError=$true
+    $psi.Arguments=( @('-C',$SourceRoot) + $a | ForEach-Object { Quote-NativeArgument ([string]$_) } ) -join ' '
+    $psi.EnvironmentVariables['GIT_TERMINAL_PROMPT']='0'
+    $psi.EnvironmentVariables['GCM_INTERACTIVE']='Never'
+    $process=New-Object System.Diagnostics.Process
+    $process.StartInfo=$psi
+    try {
+        if(-not $process.Start()){
+            return [pscustomobject]@{ ExitCode=-1; Lines=@('Could not start git.'); TimedOut=$false }
+        }
+        $stdoutTask=$process.StandardOutput.ReadToEndAsync()
+        $stderrTask=$process.StandardError.ReadToEndAsync()
+        if(-not $process.WaitForExit($TimeoutSeconds * 1000)){
+            try { $process.Kill() } catch {}
+            try { $process.WaitForExit() } catch {}
+            $stdout=''; $stderr=''
+            try { $stdout=$stdoutTask.GetAwaiter().GetResult() } catch {}
+            try { $stderr=$stderrTask.GetAwaiter().GetResult() } catch {}
+            $lines=@(($stdout + "`n" + $stderr) -split "`r?`n" | Where-Object { $_ -ne '' })
+            $lines += "Git timed out after $TimeoutSeconds second(s)."
+            return [pscustomobject]@{ ExitCode=124; Lines=$lines; TimedOut=$true }
+        }
+        $process.WaitForExit()
+        $stdout=$stdoutTask.GetAwaiter().GetResult()
+        $stderr=$stderrTask.GetAwaiter().GetResult()
+        $lines=@(($stdout + "`n" + $stderr) -split "`r?`n" | Where-Object { $_ -ne '' })
+        return [pscustomobject]@{ ExitCode=[int]$process.ExitCode; Lines=$lines; TimedOut=$false }
+    } finally { $process.Dispose() }
+}
+function Git([string[]]$a, [int]$TimeoutSeconds=30){
+    $result=Invoke-GitResult -a $a -TimeoutSeconds $TimeoutSeconds
     foreach($line in $result.Lines){ Write-Host $line }
-    if($result.ExitCode -ne 0){ Fail "Git failed for ${RepositoryName}: git $($a -join ' ') (exit $($result.ExitCode))" }
+    if($result.ExitCode -ne 0){
+        if($result.TimedOut){ Fail "Git timed out for ${RepositoryName}: git $($a -join ' ')" }
+        Fail "Git failed for ${RepositoryName}: git $($a -join ' ') (exit $($result.ExitCode))"
+    }
 }
+function Remove-IgnoredTrackedFiles {
+    $probe=Invoke-GitResult -a @('ls-files','-ci','--exclude-standard')
+    if($probe.ExitCode -ne 0){
+        foreach($line in $probe.Lines){ Write-Host $line }
+        Fail "Could not inspect ignored tracked files for $RepositoryName (exit $($probe.ExitCode))."
+    }
+    $paths=@($probe.Lines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if($paths.Count -eq 0){ return }
+    Write-Host "[INFO] Removing $($paths.Count) generated/ignored file(s) from the $RepositoryName Git index."
+    for($i=0; $i -lt $paths.Count; $i+=50){
+        $last=[Math]::Min($i+49,$paths.Count-1)
+        $chunk=@($paths[$i..$last])
+        Git -a (@('rm','--cached','--ignore-unmatch','--') + $chunk)
+    }
+}
+
 
 $GitExe=$null
 $cmd=Get-Command git.exe -ErrorAction SilentlyContinue
@@ -71,6 +126,7 @@ foreach($setting in @(
     }
 }
 
+Remove-IgnoredTrackedFiles
 Git -a @('add','-A')
 $probe=Invoke-GitResult -a @('diff','--cached','--quiet')
 if($probe.ExitCode -notin @(0,1)){ Fail "Could not inspect staged changes for $RepositoryName (exit $($probe.ExitCode))." }
@@ -86,9 +142,9 @@ if($hasChanges -or -not $hasHead){
 
 # Never force-push.  If someone has changed the remote independently, stop and
 # report it rather than destroying that history.
-$push=Invoke-GitResult -a @('push','-u','origin','HEAD:main')
+$push=Invoke-GitResult -a @('push','-u','origin','HEAD:main') -TimeoutSeconds 90
 foreach($line in $push.Lines){ Write-Host $line }
 if($push.ExitCode -ne 0){
-    Fail "The build succeeded, but $RepositoryName could not be pushed to $RepositoryUrl. Check GitHub authentication or remote history."
+    Fail "The build succeeded, but $RepositoryName could not be pushed to $RepositoryUrl. Git is non-interactive and limited to 90 seconds; check GitHub authentication, connectivity, or remote history."
 }
 Write-Host "[ OK ] $RepositoryName $Version published to GitHub."

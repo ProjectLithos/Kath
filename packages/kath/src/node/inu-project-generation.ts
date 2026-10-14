@@ -1772,6 +1772,26 @@ public static unsafe class Kernel
         // materializeKernelSourcePlan(); build-only support source is linked centrally.
         await fs.rm(path.join(projectRoot, 'Kernel', 'Provided', 'SDK'), { recursive: true, force: true });
         await this.materializeKernelSourcePlan(projectRoot, configuration);
+        await this.materializeCanonicalKernelStartupSource(projectRoot);
+    }
+
+    protected async materializeCanonicalKernelStartupSource(projectRoot: string): Promise<void> {
+        const sourceRoot = path.join(INU_SDK_ROOT, 'src', 'Inu.Kernel.Bootstrap', 'SourceComponents');
+        const groups: Array<[string, string]> = [
+            ['Boot', path.join(projectRoot, 'Boot', 'Provided', 'Startup')],
+            ['HAL', path.join(projectRoot, 'Kernel', 'Provided', 'HAL')],
+            ['Startup', path.join(projectRoot, 'Kernel', 'Provided', 'Startup')]
+        ];
+        const copyTree = async (sourceDirectory: string, destinationDirectory: string): Promise<void> => {
+            await fs.mkdir(destinationDirectory, { recursive: true });
+            for (const entry of await fs.readdir(sourceDirectory, { withFileTypes: true })) {
+                const source = path.join(sourceDirectory, entry.name);
+                const destination = path.join(destinationDirectory, entry.name);
+                if (entry.isDirectory()) await copyTree(source, destination);
+                else if (entry.isFile() && entry.name.endsWith('.cs')) await fs.copyFile(source, destination);
+            }
+        };
+        for (const [sourceName, destination] of groups) await copyTree(path.join(sourceRoot, sourceName), destination);
     }
 
     protected sdkToolchainBootstrapLines(): string[] {

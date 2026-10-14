@@ -4,7 +4,7 @@ param()
 $ErrorActionPreference = 'Stop'
 $rootPath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $PackageLockPath = Join-Path $rootPath 'JSON\package-lock.json'
-$versionPath = Join-Path $rootPath 'VERSION'
+$versionPath = Join-Path (Split-Path -Parent $rootPath) 'VERSION'
 
 if (-not (Test-Path -LiteralPath $PackageLockPath)) { exit 0 }
 if (-not (Test-Path -LiteralPath $versionPath)) {

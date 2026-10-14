@@ -1,12 +1,20 @@
-Bin/
-Artifacts/
-node_modules/
-.browser_modules/
-applications/electron/lib/
-applications/electron/src-gen/
-packages/kath/lib/
-*.log
-
+# Local/private toolchains and package installs
 .toolchain/
+node_modules/
+**/node_modules/
+
+# .NET/generated compiler output
+Bin/
 **/bin/
 **/obj/
+
+# Generated frontend/application output
+**/lib/
+**/src-gen/
+
+# Logs and transient files
+*.log
+*.tmp
+
+# Kath generated build output
+Artifacts/
