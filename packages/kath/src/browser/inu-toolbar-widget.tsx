@@ -87,6 +87,8 @@ export class InuToolbarWidget extends ReactWidget {
     protected stopRequested = false;
     protected cancelPendingSession = false;
     protected buildElapsedSeconds: number | undefined;
+    protected buildElapsedStartedAt: number | undefined;
+    protected buildElapsedTimer: number | undefined;
     protected debugState: InuDebugState = { active: false, paused: false, sourceSymbols: false };
     protected lastRevealedStop = '';
     protected breakpointsArmedForSession: string | undefined;
@@ -163,7 +165,7 @@ export class InuToolbarWidget extends ReactWidget {
                 <option value='run'>No Debug</option>
                 <option value='debug'>Debug</option>
             </select>
-            {this.buildElapsedSeconds !== undefined && <span className='inu-build-elapsed-status' title='Elapsed time for the current Inu build stage'>
+            {this.buildElapsedSeconds !== undefined && <span className='inu-build-elapsed-status' title='Elapsed time for the complete Inu build and launch acceptance'>
                 Build <strong key={this.buildElapsedSeconds} className='inu-build-elapsed-value'>{this.buildElapsedSeconds}s</strong>
             </span>}
             {debug && <div className='inu-debug-controls' aria-label='Inu debugger controls'>
@@ -369,18 +371,36 @@ export class InuToolbarWidget extends ReactWidget {
         }
     }
 
-    protected updateBuildElapsedFromOutput(text: string): void {
-        const pattern = /(\d+)s elapsed/g;
-        let match: RegExpExecArray | null;
-        let latest: number | undefined;
-        while ((match = pattern.exec(text)) !== null) {
-            latest = Number(match[1]);
+    protected startBuildElapsedTimer(): void {
+        this.stopBuildElapsedTimer();
+        this.buildElapsedStartedAt = Date.now();
+        this.buildElapsedSeconds = 0;
+        this.buildElapsedTimer = window.setInterval(() => {
+            if (this.buildElapsedStartedAt === undefined) { return; }
+            const elapsed = Math.floor((Date.now() - this.buildElapsedStartedAt) / 1000);
+            if (elapsed !== this.buildElapsedSeconds) {
+                this.buildElapsedSeconds = elapsed;
+                this.update();
+            }
+        }, 250);
+    }
+
+    protected stopBuildElapsedTimer(): void {
+        if (this.buildElapsedTimer !== undefined) {
+            window.clearInterval(this.buildElapsedTimer);
+            this.buildElapsedTimer = undefined;
         }
-        if (latest === undefined || !Number.isFinite(latest) || latest === this.buildElapsedSeconds) {
-            return;
+        if (this.buildElapsedStartedAt !== undefined) {
+            this.buildElapsedSeconds = Math.floor((Date.now() - this.buildElapsedStartedAt) / 1000);
+            this.buildElapsedStartedAt = undefined;
+            this.update();
         }
-        this.buildElapsedSeconds = latest;
-        this.update();
+    }
+
+    protected observeBuildCompletion(text: string): void {
+        if (/\[ OK \] Inu .* NativeAOT boot-and-run acceptance completed\./.test(text)) {
+            this.stopBuildElapsedTimer();
+        }
     }
 
     protected async runCurrentOperatingSystem(): Promise<void> {
@@ -394,6 +414,7 @@ export class InuToolbarWidget extends ReactWidget {
         this.stopRequested = false;
         this.cancelPendingSession = false;
         this.buildElapsedSeconds = undefined;
+        this.startBuildElapsedTimer();
         this.debugState = { active: false, paused: false, sourceSymbols: false };
         this.update();
         const channel = this.outputChannelManager.getChannel(OUTPUT_CHANNEL_NAME);
@@ -450,7 +471,7 @@ export class InuToolbarWidget extends ReactWidget {
                 const output = await this.projectService.readRunOutput(result.sessionId, offset);
                 if (output.text) {
                     if (output.text.includes('[FAIL]')) { failureAlreadyReported = true; }
-                    this.updateBuildElapsedFromOutput(output.text);
+                    this.observeBuildCompletion(output.text);
                     if (output.text.includes('\r')) {
                         outputTranscript = applyInuTerminalText(outputTranscript, output.text);
                         channel.clear();
@@ -518,11 +539,11 @@ export class InuToolbarWidget extends ReactWidget {
             await this.revealProblems();
             await this.messageService.error(`Inu Run failed: ${message}`);
         } finally {
+            this.stopBuildElapsedTimer();
             this.launching = false;
             this.sessionId = undefined;
             this.stopRequested = false;
             this.cancelPendingSession = false;
-            this.buildElapsedSeconds = undefined;
             this.debugInspector.setSession(undefined);
             this.breakpointManager.setSession(undefined);
             this.debugState = { active: false, paused: false, sourceSymbols: false };
