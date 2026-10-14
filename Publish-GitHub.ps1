@@ -56,6 +56,51 @@ function Invoke-GitResult([string[]]$a, [int]$TimeoutSeconds=30){
         return [pscustomobject]@{ ExitCode=[int]$process.ExitCode; Lines=$lines; TimedOut=$false }
     } finally { $process.Dispose() }
 }
+function Stop-ProcessTree([System.Diagnostics.Process]$Process){
+    if($null -eq $Process){ return }
+    try {
+        if($Process.HasExited){ return }
+    } catch { return }
+
+    # Process.Kill() on Windows PowerShell/.NET Framework terminates only the
+    # direct process. Git may have spawned Git Credential Manager or another
+    # helper that inherited console/pipe handles, so terminate the whole tree.
+    try {
+        $taskkill=Get-Command taskkill.exe -ErrorAction SilentlyContinue
+        if($taskkill){
+            & $taskkill.Source /PID $Process.Id /T /F *> $null
+        }
+    } catch {}
+
+    try {
+        if(-not $Process.HasExited){ $Process.Kill() }
+    } catch {}
+    try { [void]$Process.WaitForExit(5000) } catch {}
+}
+function Invoke-GitLiveResult([string[]]$a, [int]$TimeoutSeconds=90){
+    $psi=New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName=$script:GitExe
+    $psi.WorkingDirectory=$SourceRoot
+    $psi.UseShellExecute=$false
+    $psi.CreateNoWindow=$false
+    $psi.RedirectStandardOutput=$false
+    $psi.RedirectStandardError=$false
+    $psi.Arguments=( @('-C',$SourceRoot) + $a | ForEach-Object { Quote-NativeArgument ([string]$_) } ) -join ' '
+    $psi.EnvironmentVariables['GIT_TERMINAL_PROMPT']='0'
+    $psi.EnvironmentVariables['GCM_INTERACTIVE']='Never'
+    $process=New-Object System.Diagnostics.Process
+    $process.StartInfo=$psi
+    try {
+        if(-not $process.Start()){
+            return [pscustomobject]@{ ExitCode=-1; TimedOut=$false }
+        }
+        if(-not $process.WaitForExit($TimeoutSeconds * 1000)){
+            Stop-ProcessTree $process
+            return [pscustomobject]@{ ExitCode=124; TimedOut=$true }
+        }
+        return [pscustomobject]@{ ExitCode=[int]$process.ExitCode; TimedOut=$false }
+    } finally { $process.Dispose() }
+}
 function Git([string[]]$a, [int]$TimeoutSeconds=30){
     $result=Invoke-GitResult -a $a -TimeoutSeconds $TimeoutSeconds
     foreach($line in $result.Lines){ Write-Host $line }
@@ -142,9 +187,15 @@ if($hasChanges -or -not $hasHead){
 
 # Never force-push.  If someone has changed the remote independently, stop and
 # report it rather than destroying that history.
-$push=Invoke-GitResult -a @('push','-u','origin','HEAD:main') -TimeoutSeconds 90
-foreach($line in $push.Lines){ Write-Host $line }
+Write-Host "[INFO] Pushing $RepositoryName to GitHub (maximum 90 seconds)..."
+# Push uses inherited console handles instead of redirected async pipes. If a
+# credential/helper child survives the parent git.exe, redirected ReadToEndAsync
+# can otherwise keep the publisher blocked forever even after the timeout fires.
+$push=Invoke-GitLiveResult -a @('push','-u','origin','HEAD:main') -TimeoutSeconds 90
 if($push.ExitCode -ne 0){
-    Fail "The build succeeded, but $RepositoryName could not be pushed to $RepositoryUrl. Git is non-interactive and limited to 90 seconds; check GitHub authentication, connectivity, or remote history."
+    if($push.TimedOut){
+        Fail "The build succeeded, but $RepositoryName push exceeded 90 seconds and the Git process tree was terminated. Check GitHub authentication or connectivity."
+    }
+    Fail "The build succeeded, but $RepositoryName could not be pushed to $RepositoryUrl (exit $($push.ExitCode)). Check GitHub authentication, connectivity, or remote history."
 }
 Write-Host "[ OK ] $RepositoryName $Version published to GitHub."

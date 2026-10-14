@@ -1275,6 +1275,7 @@ public static unsafe class Kernel
         if (!InputHardwareStartup.EnableHardwareInterrupts()) return false;
         if (!GraphicsHardwareStartup.Initialize()) return false;
         if (!DriverBindingStartup.Initialize()) return false;
+        if (!FilesystemHardwareStartup.Initialize()) return false;
         if (!KernelStructuredLogging.InfoLine("hybrid", "Kernel.KMain", "The OS-selected kernel-resident hardware components are online.")) return false;
         if (!UserlandCommandStartup.Initialize(boot)) return false;
         if (!InterruptRuntimeStartup.Enable()) return false;
@@ -1319,6 +1320,7 @@ public static unsafe class Kernel
         if (!NetworkingHardwareStartup.Initialize()) return false;
         if (!UsbHardwareStartup.Initialize()) return false;
         if (!DriverBindingStartup.Initialize()) return false;
+        if (!FilesystemHardwareStartup.Initialize()) return false;
         if (!KernelStructuredLogging.InfoLine("monolithic", "Kernel.KMain", "The OS-selected kernel-resident components are online.")) return false;
         if (!UserlandCommandStartup.Initialize(boot)) return false;
         if (!InterruptRuntimeStartup.Enable()) return false;
@@ -1402,6 +1404,9 @@ public static unsafe class Kernel
 ...(areas.Networking ? ['INU_COMPONENT_NETWORK_ROUTE_MANAGER', 'INU_COMPONENT_NETWORK_NEIGHBOR_CACHE', 'INU_COMPONENT_NETWORK_SOCKET_SERVICE', 'INU_COMPONENT_NETWORK_DHCP_CODEC', 'INU_COMPONENT_NETWORK_DNS_CODEC', 'INU_COMPONENT_NETWORK_ARP_PROTOCOL', 'INU_COMPONENT_NETWORK_IPV4_PROTOCOL', 'INU_COMPONENT_NETWORK_ICMPV4_PROTOCOL', 'INU_COMPONENT_NETWORK_UDP_IPV4_PROTOCOL', 'INU_COMPONENT_NETWORK_TCP_OBSERVATION_PROTOCOL', 'INU_COMPONENT_NETWORK_IPV6_NDP_PROTOCOL'] : []),
             ...(areas.USB ? ['INU_COMPONENT_USB_ENUMERATION', 'INU_COMPONENT_USB_HID_KEYBOARD', 'INU_COMPONENT_USB_HID_MOUSE', 'INU_COMPONENT_USB_MASS_STORAGE'] : []),
             ...(areas.Storage ? ['INU_COMPONENT_STORAGE_PARTITION_DISCOVERY'] : []),
+            ...(areas.Storage && configuration.storageControllers.includes('virtio-block') ? ['INU_COMPONENT_STORAGE_VIRTIO_BLOCK_DRIVER'] : []),
+            ...(areas.Storage && configuration.storageControllers.includes('nvme') ? ['INU_COMPONENT_STORAGE_NVME_DRIVER'] : []),
+            ...(areas.Storage && configuration.storageControllers.includes('ahci') ? ['INU_COMPONENT_STORAGE_AHCI_DRIVER'] : []),
             ...(areas.Filesystems ? ['INU_COMPONENT_FILESYSTEM_FATFS'] : []),
             ...(areas.Input ? ['INU_COMPONENT_INPUT_KEYBOARD_DECODER'] : []),
             ...(areas.Drivers ? ['INU_COMPONENT_INTERRUPTS_AFFINITY_RESOLVER', 'INU_COMPONENT_INTERRUPTS_IO_APIC_ROUTER', 'INU_COMPONENT_INTERRUPTS_PCI_MESSAGE_ROUTER', 'INU_COMPONENT_PCI_LEGACY_CONFIGURATION', 'INU_COMPONENT_PCI_ECAM_CONFIGURATION', 'INU_COMPONENT_ACPI_MCFG', 'INU_COMPONENT_ACPI_EMBEDDED_CONTROLLER'] : []),
