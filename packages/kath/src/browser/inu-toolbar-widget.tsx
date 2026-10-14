@@ -165,7 +165,7 @@ export class InuToolbarWidget extends ReactWidget {
                 <option value='run'>No Debug</option>
                 <option value='debug'>Debug</option>
             </select>
-            {this.buildElapsedSeconds !== undefined && <span className='inu-build-elapsed-status' title='Elapsed time for the complete Inu build and launch acceptance'>
+            {this.buildElapsedSeconds !== undefined && <span className='inu-build-elapsed-status' title='Elapsed time for the Inu build; stops when Kath hands the finished image to QEMU'>
                 Build <strong key={this.buildElapsedSeconds} className='inu-build-elapsed-value'>{this.buildElapsedSeconds}s</strong>
             </span>}
             {debug && <div className='inu-debug-controls' aria-label='Inu debugger controls'>
@@ -398,7 +398,10 @@ export class InuToolbarWidget extends ReactWidget {
     }
 
     protected observeBuildCompletion(text: string): void {
-        if (/\[ OK \] Inu .* NativeAOT boot-and-run acceptance completed\./.test(text)) {
+        // QEMU runtime acceptance is execution/boot validation, not part of the build.
+        // Freeze the toolbar counter as soon as Inu announces the hand-off to QEMU.
+        if (/^QEMU runtime acceptance\.\.\.$/m.test(text) ||
+            /\[INFO\] Stage: QEMU runtime acceptance/.test(text)) {
             this.stopBuildElapsedTimer();
         }
     }

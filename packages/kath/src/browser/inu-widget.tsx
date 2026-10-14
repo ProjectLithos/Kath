@@ -3,7 +3,9 @@ import { MessageService } from '@theia/core/lib/common/message-service';
 import { ConfirmDialog } from '@theia/core/lib/browser/dialogs';
 import URI from '@theia/core/lib/common/uri';
 import { BaseWidget } from '@theia/core/lib/browser/widgets/widget';
+import { ApplicationShell } from '@theia/core/lib/browser';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
+import { EditorManager } from '@theia/editor/lib/browser';
 import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog/file-dialog-service';
 import { Message } from '@lumino/messaging';
 import {
@@ -31,6 +33,8 @@ export class InuWidget extends BaseWidget {
     @inject(InuProjectService) protected readonly projectService!: InuProjectService;
     @inject(MessageService) protected readonly messages!: MessageService;
     @inject(WorkspaceService) protected readonly workspaceService!: WorkspaceService;
+    @inject(EditorManager) protected readonly editorManager!: EditorManager;
+    @inject(ApplicationShell) protected readonly applicationShell!: ApplicationShell;
     @inject(FileDialogService) protected readonly fileDialogService!: FileDialogService;
 
     protected configuration: InuProjectConfiguration = this.createDefaultConfiguration();
@@ -445,12 +449,27 @@ export class InuWidget extends BaseWidget {
         finally { this.loadingSystems = false; this.renderContent(); }
     }
 
-    protected async openOperatingSystem(os: InuOperatingSystem): Promise<void> {
+    protected async openOperatingSystem(os: InuOperatingSystem, freshWorkspace = false): Promise<void> {
         const refreshed = await this.projectService.refreshOperatingSystem(os.path);
         if (!refreshed.success) {
             await this.messages.error(`Could not refresh ${os.name} before opening: ${refreshed.error ?? 'Unknown error'}`);
             return;
         }
+
+        if (freshWorkspace) {
+            // Preserve coder edits in the previous OS before intentionally discarding its
+            // editor layout for the newly generated workspace.
+            await this.applicationShell.saveAll();
+
+            // A generated OS is a new workspace, not a continuation of the OS that happened
+            // to be open while it was created. Close every source editor before Theia saves
+            // the layout for the workspace transition, otherwise those old editor tabs are
+            // restored into the newly generated OS after the preserve-window reload.
+            for (const editor of Array.from(this.editorManager.all)) {
+                editor.close();
+            }
+        }
+
         window.sessionStorage.setItem(INU_EXPLICIT_WORKSPACE_OPEN, os.uri);
         await this.workspaceService.open(new URI(os.uri), { preserveWindow: true });
     }
@@ -513,7 +532,7 @@ export class InuWidget extends BaseWidget {
                     if (os) {
                         this.generationStatus = `OS generated at ${result.projectPath}. Opening source workspace…`;
                         this.renderContent();
-                        await this.openOperatingSystem(os);
+                        await this.openOperatingSystem(os, true);
                     } else {
                         await this.messages.error(`OS source was generated at ${result.projectPath}, but Kath could not resolve its registered workspace.`);
                     }
