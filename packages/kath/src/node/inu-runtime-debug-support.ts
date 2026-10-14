@@ -151,23 +151,19 @@ export abstract class InuRuntimeDebugSupport extends InuProjectGenerationSupport
         session.internalPause = false;
 
         const unresolved = session.breakpointResults.filter(item => !item.verified);
-        if (unresolved.length > 0) {
-            session.debug = {
-                active: true, paused: true, sourceSymbols: true, gdbPort: port,
-                breakpoints: session.breakpointResults.map(item => ({ ...item })),
-                message: `${unresolved.length} requested breakpoint(s) could not be verified. Physical kernel held before KMain; fix/remove them, then Continue.`
-            };
-            session.output += `[WARN] Physical kernel held before KMain because ${unresolved.length} source breakpoint(s) are unresolved.\r\n`;
-            return;
-        }
-
         session.debug = {
             active: true, paused: false, sourceSymbols: true, gdbPort: port,
             breakpoints: session.breakpointResults.map(item => ({ ...item })),
-            message: `Physical kernel running through ${host}:${port}. Waiting for breakpoint.`
+            message: unresolved.length > 0
+                ? `Physical kernel running through ${host}:${port}. ${unresolved.length} breakpoint(s) remain pending/unverified.`
+                : `Physical kernel running through ${host}:${port}. Waiting for breakpoint.`
         };
         gdb.run('c');
-        session.output += `[ OK ] ${session.breakpointResults.filter(item => item.verified).length}/${session.breakpointResults.length} requested source breakpoint(s) armed before KMain.\r\n`;
+        if (unresolved.length > 0) {
+            session.output += `[WARN] ${session.breakpointResults.filter(item => item.verified).length}/${session.breakpointResults.length} requested source breakpoint(s) armed before KMain; ${unresolved.length} remain pending/unverified and will not block boot.\r\n`;
+        } else {
+            session.output += `[ OK ] ${session.breakpointResults.filter(item => item.verified).length}/${session.breakpointResults.length} requested source breakpoint(s) armed before KMain.\r\n`;
+        }
         session.output += '[INFO] Physical kernel released. It will stop only at a verified breakpoint, Pause, exception or panic.\r\n';
     }
 
@@ -342,24 +338,19 @@ export abstract class InuRuntimeDebugSupport extends InuProjectGenerationSupport
         session.internalPause = false;
 
         const unresolved = session.breakpointResults.filter(item => !item.verified);
-        if (unresolved.length > 0) {
-            session.debug = {
-                active: true, paused: true, sourceSymbols: true, gdbPort,
-                breakpoints: session.breakpointResults.map(item => ({ ...item })),
-                message: `${unresolved.length} requested breakpoint(s) could not be verified. Kernel held before KMain; fix/remove them, then Continue.`
-            };
-            session.output += `[WARN] ${session.breakpointResults.filter(item => item.verified).length}/${session.breakpointResults.length} requested source breakpoint(s) armed before KMain.\r\n`;
-            session.output += `[WARN] Kernel is held before KMain because ${unresolved.length} requested breakpoint(s) are unresolved. Remove or move the unverified breakpoint(s), then press Continue.\r\n`;
-            return;
-        }
-
         session.debug = {
             active: true, paused: false, sourceSymbols: true, gdbPort,
             breakpoints: session.breakpointResults.map(item => ({ ...item })),
-            message: 'Kernel running. Waiting for breakpoint.'
+            message: unresolved.length > 0
+                ? `Kernel running. ${unresolved.length} breakpoint(s) remain pending/unverified.`
+                : 'Kernel running. Waiting for breakpoint.'
         };
         gdb.run('c');
-        session.output += `[ OK ] ${session.breakpointResults.filter(item => item.verified).length}/${session.breakpointResults.length} requested source breakpoint(s) armed before KMain.\r\n`;
+        if (unresolved.length > 0) {
+            session.output += `[WARN] ${session.breakpointResults.filter(item => item.verified).length}/${session.breakpointResults.length} requested source breakpoint(s) armed before KMain; ${unresolved.length} remain pending/unverified and will not block boot.\r\n`;
+        } else {
+            session.output += `[ OK ] ${session.breakpointResults.filter(item => item.verified).length}/${session.breakpointResults.length} requested source breakpoint(s) armed before KMain.\r\n`;
+        }
         session.output += '[INFO] Kernel released. It will stop only at a verified breakpoint, Pause, exception or panic.\r\n';
         const checkpoints = [
             ['NORESUME', 'debug resume'],
