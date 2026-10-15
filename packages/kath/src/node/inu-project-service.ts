@@ -344,7 +344,7 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
     }
 
     async getSdkApiSiteUrl(): Promise<string> {
-        const indexPath = path.join(INU_SDK_ROOT, 'docs', 'site', 'index.html');
+        const indexPath = path.join(INU_SDK_ROOT, 'Help', 'index.html');
         await fs.access(indexPath);
         return pathToFileURL(indexPath).toString();
     }

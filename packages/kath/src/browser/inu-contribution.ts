@@ -86,7 +86,7 @@ export namespace InuCommands {
     export const SYSCALLS: Command = { id: 'inu.engineering.syscalls', label: 'Syscall Explorer' };
     export const IMAGES: Command = { id: 'inu.engineering.imageDiskExplorer', label: 'Image / Disk Explorer' };
     export const PHYSICAL_DEBUGGER: Command = { id: 'inu.engineering.physicalDebugger', label: 'Physical-machine Debugger Transport' };
-    export const SDK_API: Command = { id: 'inu.help.sdkApi', label: 'SDK API' };
+    export const SDK_API: Command = { id: 'inu.help.sdkApi', label: 'Inu SDK Help' };
     export const MATERIALIZE_SDK_LIBRARY: Command = { id: 'inu.sdk.materializeLibraryForSymbol', label: 'Materialise Inu SDK Library for Symbol' };
     export const GO_BUILD: Command = { id: 'inu.go.build', label: 'Build Inu OS' };
     export const GO_RUN: Command = { id: 'inu.go.run', label: 'Run Inu OS' };
@@ -300,7 +300,7 @@ export class InuContribution extends AbstractViewContribution<InuWidget>
         menus.registerMenuAction([...inuMenu, '2_engineering'], { commandId: InuCommands.SYSCALLS.id, label: 'Syscall Explorer', order: '12' });
         menus.registerMenuAction([...inuMenu, '2_engineering'], { commandId: InuCommands.IMAGES.id, label: 'Image / Disk Explorer', order: '13' });
         menus.registerMenuAction([...inuMenu, '2_engineering'], { commandId: InuCommands.PHYSICAL_DEBUGGER.id, label: 'Physical-machine Debugger Transport', order: '14' });
-        menus.registerMenuAction(CommonMenus.HELP, { commandId: InuCommands.SDK_API.id, label: 'SDK API', order: 'a20' });
+        menus.registerMenuAction(CommonMenus.HELP, { commandId: InuCommands.SDK_API.id, label: 'Inu SDK Help', order: 'a20' });
 
         menus.registerMenuAction(NavigatorContextMenu.NAVIGATION, {
             commandId: InuCommands.RECONFIGURE_ROOT_CONTEXT.id,
