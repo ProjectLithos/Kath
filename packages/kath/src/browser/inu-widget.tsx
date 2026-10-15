@@ -408,7 +408,15 @@ export class InuWidget extends BaseWidget {
         configuration.startupModel = 'cli';
         configuration.qemuAccelerator = 'auto';
         configuration.qemuCpuCount = 4;
-        configuration.hardwareSupport = ['pci','acpi','serial-16550','virtio-console','virtio-rng','virtio-block','virtio-net','usb-xhci','usb-hid-keyboard','usb-hid-mouse','uefi-gop'];
+        // New Test Kernel is the complete implemented SDK validation profile. Keep this list
+        // aligned with every hardware option Kath currently exposes; normal OS projects remain selective.
+        configuration.hardwareSupport = [
+            'pci','acpi','serial-16550','virtio-console','virtio-rng',
+            'virtio-block','nvme','ahci',
+            'usb-xhci','usb-ehci','usb-hid-keyboard','usb-hid-mouse','ps2-keyboard','ps2-mouse',
+            'uefi-gop','generic-framebuffer','virtio-gpu',
+            'virtio-net','e1000','rtl8168'
+        ];
         // A Test OS is intentionally broad. Keep a real filesystem selected so its kernel-facing
         // path-policy/logical-path API and FAT32 implementation are compiled and eligible for
         // Debug validation rather than leaving the test kernel with filesystem examples but no

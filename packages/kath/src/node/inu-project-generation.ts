@@ -1,4 +1,5 @@
 import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 import * as path from 'path';
 import { InuProjectConfiguration } from '../common/inu-protocol';
 import { KATH_ROOT, KATH_VERSION, INU_SDK_ROOT } from './inu-environment';
@@ -378,6 +379,17 @@ export abstract class InuProjectGenerationSupport {
         await fs.writeFile(filePath, source, 'utf8');
     }
 
+    protected sdkPublicNamespaces(category: 'Boot' | 'Kernel' | 'Userland' | 'Freestanding .NET'): string[] {
+        try {
+            const contract = JSON.parse(fsSync.readFileSync(path.join(INU_SDK_ROOT, 'Inu.ApiContract.json'), 'utf8')) as { codingApi?: { exports?: Array<{ namespace?: string; category?: string; status?: string }> } };
+            return Array.from(new Set((contract.codingApi?.exports ?? [])
+                .filter(entry => entry.category === category && entry.status !== 'planned' && typeof entry.namespace === 'string' && entry.namespace.length > 0)
+                .map(entry => entry.namespace as string))).sort((a, b) => a.localeCompare(b));
+        } catch {
+            return [];
+        }
+    }
+
     protected kernelUsingDirectives(configuration: InuProjectConfiguration): string {
         // Kernel/<OSName>/Kernel.cs is coder-owned policy source. Never inherit imports
         // from Inu's generated bootstrap implementation: bootstrap/HAL namespaces are
@@ -394,19 +406,21 @@ export abstract class InuProjectGenerationSupport {
             'using Inu.Kernel.Power;'
         ];
 
+        // A New Test Kernel is the complete SDK validation target. Its coder-owned Kernel.cs
+        // imports every currently exported Kernel namespace from the authoritative API contract,
+        // so an SDK surface cannot exist in Help while silently being unavailable to the Test Kernel.
+        if (configuration.projectKind === 'test-os') {
+            for (const ns of this.sdkPublicNamespaces('Kernel')) directives.push(`using ${ns};`);
+        }
         if (areas.Scheduler) directives.push('using Inu.Kernel.Scheduler;');
         if (configuration.smp) directives.push('using Inu.Kernel.Smp;');
         if (areas.Drivers) { directives.push('using Inu.Kernel.Drivers;'); directives.push('using Inu.Kernel.Hardware;'); }
-        // The SDK Test OS deliberately exercises the kernel-facing storage/filesystem facade even
-        // when the selected kernel topology is Microkernel. Inu.Kernel.Storage is already part of
-        // the central kernel source plan; importing it here makes the validation surface available
-        // without changing normal OS ownership/placement rules.
         if (configuration.projectKind === 'test-os' || areas.Storage || areas.Filesystems) directives.push('using Inu.Kernel.Storage;');
         if (areas.Filesystems && configuration.filesystem !== 'none') directives.push('using Inu.Filesystem.FatFs;');
         if (configuration.graphics.length > 0) directives.push('using Inu.Kernel.Graphics;');
         if (areas.Input) directives.push('using Inu.Kernel.Input;');
         if (areas.Networking) directives.push('using Inu.Kernel.Networking;');
-        if (configuration.audio !== 'none' && this.driverKind(configuration, `hardware:${configuration.audio}`) === 'kernel-module') directives.push('using Inu.Kernel.Audio;');
+        if (configuration.projectKind === 'test-os' || (configuration.audio !== 'none' && this.driverKind(configuration, `hardware:${configuration.audio}`) === 'kernel-module')) directives.push('using Inu.Kernel.Audio;');
 
         return `${Array.from(new Set(directives)).join('\n')}\n\n`;
     }
@@ -528,8 +542,16 @@ export abstract class InuProjectGenerationSupport {
         const osName = this.safeSegment(configuration.name);
         const ns = `KathInu.${this.namespace(configuration.name)}`;
         const kernelUsings = this.kernelUsingDirectives(configuration);
+        const bootUsings = configuration.projectKind === 'test-os'
+            ? this.sdkPublicNamespaces('Boot').map(namespaceName => `using ${namespaceName};`).join('\n') + '\n\n'
+            : '';
+        const userlandTestUsings = configuration.projectKind === 'test-os'
+            ? Array.from(new Set([...this.sdkPublicNamespaces('Userland'), ...this.sdkPublicNamespaces('Freestanding .NET')]))
+                .filter(namespaceName => namespaceName !== 'System' && namespaceName !== 'Inu.Userland.Runtime')
+                .map(namespaceName => `using ${namespaceName};`).join('\n') + '\n'
+            : '';
         await this.writeCoderOwnedFile(path.join(projectRoot, 'Boot', osName, 'Boot.cs'),
-`namespace ${ns}.Boot;
+`${bootUsings}namespace ${ns}.Boot;
 
 /// <summary>Coder-owned boot customisation. Kath&Inu never silently overwrites this file.</summary>
 public static class Boot
@@ -598,7 +620,7 @@ ${kernelStartup}
             await this.writeCoderOwnedFile(path.join(projectRoot, 'Userland', osName, 'Shell.cs'),
 `using System;
 using Inu.Userland.Runtime;
-
+${userlandTestUsings}
 namespace ${ns}.Userland;
 
 /// <summary>Coder-owned shell behaviour. Configure runs once; Run performs one visible command iteration.</summary>
@@ -1425,6 +1447,7 @@ public static unsafe class Kernel
 
     protected sdkKernelAreas(configuration: InuProjectConfiguration): Record<string, boolean> {
         const model = this.sdkKernelModel(configuration);
+        const testOs = configuration.projectKind === 'test-os';
         const monolithic = model === 'Monolithic';
         const hybrid = model === 'Hybrid';
         const custom = model === 'Custom';
@@ -1432,27 +1455,27 @@ public static unsafe class Kernel
         return {
             Shell: false,
             GUI: false,
-            Drivers: monolithic || hybrid || (model === 'Microkernel' && configuration.storageControllers.length > 0) || customKernelHardware,
+            Drivers: testOs || monolithic || hybrid || (model === 'Microkernel' && configuration.storageControllers.length > 0) || customKernelHardware,
             HAL: true,
-            Audio: false,
-            Filesystems: configuration.filesystem !== 'none' && (monolithic || hybrid || model === 'Microkernel' || (custom && this.customExecutionArea(configuration, 'service:filesystem') === 'kernel')),
+            Audio: testOs,
+            Filesystems: testOs || (configuration.filesystem !== 'none' && (monolithic || hybrid || model === 'Microkernel' || (custom && this.customExecutionArea(configuration, 'service:filesystem') === 'kernel'))),
             // Until the replaceable ring-3 storage-service transport is complete, the selected block-driver/VFS
             // mechanism remains kernel-resident for every model. This keeps a Microkernel usable without
             // turning filesystem policy or applications into kernel code.
-            Storage: configuration.storageControllers.length > 0 && (monolithic || hybrid || model === 'Microkernel' || (custom && configuration.storageControllers.some(value => this.customExecutionArea(configuration, `hardware:${value}`) === 'kernel'))),
-            Networking: (monolithic || (custom && this.customExecutionArea(configuration, 'service:networking') === 'kernel')) && configuration.networkStack !== 'none',
+            Storage: testOs || (configuration.storageControllers.length > 0 && (monolithic || hybrid || model === 'Microkernel' || (custom && configuration.storageControllers.some(value => this.customExecutionArea(configuration, `hardware:${value}`) === 'kernel')))),
+            Networking: testOs || ((monolithic || (custom && this.customExecutionArea(configuration, 'service:networking') === 'kernel')) && configuration.networkStack !== 'none'),
             // Inu's currently implemented PS/2 and USB HID providers are kernel mechanisms.
             // When the OS author selects them, materialize those mechanisms even for a microkernel
             // GUI so the ring-3 desktop/login can receive real input events. Kath may move a future
             // userland-capable provider out of the kernel without changing the GUI contract.
-            USB: (monolithic && configuration.drivers.some(value => value.startsWith('usb-'))) || configuration.input.some(value => value.startsWith('usb-hid-')),
-            Input: monolithic || hybrid || configuration.input.length > 0,
+            USB: testOs || (monolithic && configuration.drivers.some(value => value.startsWith('usb-'))) || configuration.input.some(value => value.startsWith('usb-hid-')),
+            Input: testOs || monolithic || hybrid || configuration.input.length > 0,
             Processes: true,
             Scheduler: configuration.scheduler !== 'none',
             SystemCalls: true,
             Security: true,
-            Diagnostics: configuration.debugging.length > 0,
-            Tests: false
+            Diagnostics: testOs || configuration.debugging.length > 0,
+            Tests: testOs
         };
     }
 
@@ -1470,6 +1493,8 @@ public static unsafe class Kernel
                         ...(areas.Processes ? ['INU_COMPONENT_PROCESS_LIFECYCLE', 'INU_COMPONENT_PROCESS_ADDRESS_SPACE_OWNERSHIP', 'INU_COMPONENT_PROCESS_FOREGROUND_CONTROL', 'INU_COMPONENT_PROCESS_SIGNALS'] : []),
             ...(areas.Scheduler ? ['INU_COMPONENT_SCHEDULER_PRIORITY_POLICY', 'INU_COMPONENT_SCHEDULER_LOAD_AWARE_PLACEMENT'] : []),
 ...(areas.Networking ? ['INU_COMPONENT_NETWORK_ROUTE_MANAGER', 'INU_COMPONENT_NETWORK_NEIGHBOR_CACHE', 'INU_COMPONENT_NETWORK_SOCKET_SERVICE', 'INU_COMPONENT_NETWORK_DHCP_CODEC', 'INU_COMPONENT_NETWORK_DNS_CODEC', 'INU_COMPONENT_NETWORK_ARP_PROTOCOL', 'INU_COMPONENT_NETWORK_IPV4_PROTOCOL', 'INU_COMPONENT_NETWORK_ICMPV4_PROTOCOL', 'INU_COMPONENT_NETWORK_UDP_IPV4_PROTOCOL', 'INU_COMPONENT_NETWORK_TCP_OBSERVATION_PROTOCOL', 'INU_COMPONENT_NETWORK_IPV6_NDP_PROTOCOL'] : []),
+            ...(areas.Networking && configuration.networkDrivers.includes('e1000') ? ['INU_COMPONENT_NETWORK_E1000_DRIVER'] : []),
+            ...(areas.Networking && configuration.networkDrivers.includes('rtl8168') ? ['INU_COMPONENT_NETWORK_RTL8168_DRIVER'] : []),
             ...(areas.USB ? ['INU_COMPONENT_USB_ENUMERATION', 'INU_COMPONENT_USB_HID_KEYBOARD', 'INU_COMPONENT_USB_HID_MOUSE', 'INU_COMPONENT_USB_MASS_STORAGE'] : []),
             ...(areas.Storage ? ['INU_COMPONENT_STORAGE_PARTITION_DISCOVERY'] : []),
             ...(areas.Storage && configuration.storageControllers.includes('virtio-block') ? ['INU_COMPONENT_STORAGE_VIRTIO_BLOCK_DRIVER'] : []),
@@ -1552,7 +1577,7 @@ public static unsafe class Kernel
             '**This project is an SDK validation operating system, not a normal end-user OS.**',
             '',
             'When Run, Inu automatically enables the host .NET reference suite and the in-kernel managed/BCL/GC/ABI conformance gate.',
-            'The kernel then continues through the selected SDK subsystem startup and formal subsystem-contract validation before entering the selected session.',
+            'The kernel then continues through the complete currently available SDK component/hardware validation profile before entering the selected session.',
             '',
             'Normal operating systems do not inherit this validation overhead.',
             ''
@@ -1768,6 +1793,38 @@ public static unsafe class Kernel
             required.add('Inu.Usb.Xhci');
             required.add('Inu.Usb.Hub');
             required.add('Inu.Usb.MassStorage');
+        }
+        if (configuration.projectKind === 'test-os') {
+            // The Test Kernel must compile every currently exported Boot/Kernel SDK assembly,
+            // not merely whatever happens to be selected by the ordinary OS configurator.
+            // The API contract therefore drives the validation source plan as well as Help.
+            try {
+                const contract = JSON.parse(await fs.readFile(path.join(INU_SDK_ROOT, 'Inu.ApiContract.json'), 'utf8')) as { codingApi?: { exports?: Array<{ assembly?: string; category?: string; status?: string }> } };
+                for (const entry of contract.codingApi?.exports ?? []) {
+                    if ((entry.category !== 'Boot' && entry.category !== 'Kernel') || entry.status === 'planned' || !entry.assembly) continue;
+                    try { await fs.access(path.join(sourceRoot, entry.assembly)); required.add(entry.assembly); } catch { }
+                }
+            } catch { }
+            // Compile every source-component implementation that the SDK itself marks available.
+            // This makes the Test Kernel future-proof: adding a new available C# SDK component
+            // automatically puts its owning project into the Test Kernel validation build.
+            try {
+                const definitionsDirectory = path.join(INU_SDK_ROOT, 'components', 'definitions');
+                for (const fileName of await fs.readdir(definitionsDirectory)) {
+                    if (!fileName.endsWith('.json') || fileName.endsWith('.schema.json')) continue;
+                    try {
+                        const definition = JSON.parse(await fs.readFile(path.join(definitionsDirectory, fileName), 'utf8')) as InuSourceComponentDefinition;
+                        const implementation = definition.implementations?.CSharp;
+                        if (implementation?.status === 'available' && implementation.project) {
+                            const normalisedProject = implementation.project.replace(/\\/g, '/');
+                            const parts = normalisedProject.split('/');
+                            const srcIndex = parts.indexOf('src');
+                            const projectName = srcIndex >= 0 && srcIndex + 1 < parts.length ? parts[srcIndex + 1] : path.basename(path.dirname(normalisedProject));
+                            if (projectName) required.add(projectName);
+                        }
+                    } catch { }
+                }
+            } catch { }
         }
         const queue = Array.from(required);
         const inventory: Array<{ source: string; destination: string; project: string; central: boolean }> = [];
