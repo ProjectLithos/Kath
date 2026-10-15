@@ -2,6 +2,7 @@ import { inject, injectable, postConstruct } from 'inversify';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { ConfirmDialog } from '@theia/core/lib/browser/dialogs';
 import URI from '@theia/core/lib/common/uri';
+import { FileUri } from '@theia/core/lib/common/file-uri';
 import { BaseWidget } from '@theia/core/lib/browser/widgets/widget';
 import { ApplicationShell } from '@theia/core/lib/browser';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
@@ -457,6 +458,23 @@ export class InuWidget extends BaseWidget {
         finally { this.loadingSystems = false; this.renderContent(); }
     }
 
+    protected async openGeneratedOperatingSystem(projectPath: string): Promise<void> {
+        const refreshed = await this.projectService.refreshOperatingSystem(projectPath);
+        if (!refreshed.success) {
+            await this.messages.error(`OS source was generated at ${projectPath}, but Kath could not refresh the generated files: ${refreshed.error ?? 'Unknown error'}`);
+            return;
+        }
+
+        // A newly generated OS is a fresh workspace. Save the previous OS, discard its editor
+        // layout, and open the exact directory returned by creation rather than a registry alias.
+        await this.applicationShell.saveAll();
+        for (const editor of Array.from(this.editorManager.all)) editor.close();
+
+        const uri = FileUri.create(projectPath);
+        window.sessionStorage.setItem(INU_EXPLICIT_WORKSPACE_OPEN, uri.toString());
+        await this.workspaceService.open(uri, { preserveWindow: true });
+    }
+
     protected async openOperatingSystem(os: InuOperatingSystem, freshWorkspace = false): Promise<void> {
         const refreshed = await this.projectService.refreshOperatingSystem(os.path);
         if (!refreshed.success) {
@@ -529,22 +547,13 @@ export class InuWidget extends BaseWidget {
                 this.configuration = c;
             }
             this.generationPercent = 100; this.generationStatus = `OS generated at ${generatedProjectPath}.`;
-            if (!this.reconfiguringProjectPath) {
-                await this.refreshOperatingSystems();
-                if (result.projectPath) {
-                    const normalizePath = (value: string) => value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-                    const generatedPath = normalizePath(result.projectPath);
-                    const os = this.operatingSystems.find(item =>
-                        normalizePath(item.path) === generatedPath ||
-                        normalizePath(item.location) === generatedPath);
-                    if (os) {
-                        this.generationStatus = `OS generated at ${result.projectPath}. Opening source workspace…`;
-                        this.renderContent();
-                        await this.openOperatingSystem(os, true);
-                    } else {
-                        await this.messages.error(`OS source was generated at ${result.projectPath}, but Kath could not resolve its registered workspace.`);
-                    }
-                }
+            if (!this.reconfiguringProjectPath && result.projectPath) {
+                // Creation already returns the exact concrete directory that was allocated and
+                // populated. Open that path directly. Do not make successful creation depend on
+                // a second registry scan finding the same project before the workspace can open.
+                this.generationStatus = `OS generated at ${result.projectPath}. Opening source workspace…`;
+                this.renderContent();
+                await this.openGeneratedOperatingSystem(result.projectPath);
             }
         } catch (error) { this.generationStatus = `Generation failed: ${error instanceof Error ? error.message : String(error)}`; await this.messages.error(this.generationStatus); }
         finally { this.creating = false; this.stopGenerationProgressPolling(); this.renderContent(); }

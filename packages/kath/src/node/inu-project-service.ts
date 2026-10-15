@@ -1525,11 +1525,11 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
         if (!ovmfCode || !ovmfVars) throw new Error('OVMF firmware was not found in the QEMU installation.');
 
         run.output += '[INFO] Building the selected OS explicitly in Debug mode before hardware validation.\r\n';
-        const debugBuildPath = path.join(INU_SDK_ROOT, 'Build-Inu.bat');
+        const inuHostPath = path.resolve(INU_SDK_ROOT, '..', 'Bin', 'inu.exe');
         const projectManifestPath = path.join(projectRoot, 'InuProject.json');
-        await fs.access(debugBuildPath);
+        await fs.access(inuHostPath);
         await fs.access(projectManifestPath);
-        const build = await this.captureProcess(process.env.ComSpec || 'cmd.exe', ['/d', '/c', 'call', debugBuildPath, projectManifestPath, '-Configuration', 'Debug', '-NoRun'], projectRoot);
+        const build = await this.captureProcess(inuHostPath, ['os', 'build', projectManifestPath, '--configuration', 'Debug', '--force-rebuild', '--no-run'], projectRoot);
         run.output += build.output;
         if (build.exitCode !== 0) throw new Error(`Debug OS build failed with exit code ${build.exitCode}. No QEMU validation cases were run.`);
 
@@ -1688,16 +1688,10 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             if (activeTarget.kind === 'physical' && mode !== 'debug') return { success: false, error: `${activeTarget.name} is a physical target. Use Debug to build the kernel and attach to the configured hardware GDB endpoint; Release Run cannot automatically boot a physical machine.` };
             if (activeTarget.architecture !== 'x86_64') return { success: false, error: `${activeTarget.name} targets ${activeTarget.architecture}. The current bundled Inu build/debug transport is x86_64; the target remains stored until that architecture backend is installed.` };
 
-            const runPath = path.join(projectRoot, 'Run.bat');
-            if (mode !== 'debug') await fs.access(runPath);
-            const debugBuildPath = path.join(INU_SDK_ROOT, 'Build-Inu.bat');
+            const inuHostPath = path.resolve(INU_SDK_ROOT, '..', 'Bin', 'inu.exe');
             const projectManifestPath = path.join(projectRoot, 'InuProject.json');
-            if (mode === 'debug') {
-                await fs.access(debugBuildPath);
-                await fs.access(projectManifestPath);
-            }
-
-            const modeArgument = mode === 'debug' ? 'Debug' : 'Run';
+            await fs.access(inuHostPath);
+            await fs.access(projectManifestPath);
             const sessionId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
             const session: RunSession = {
                 sessionId, output: '', complete: false, mode, projectRoot, target: activeTarget,
@@ -1715,9 +1709,9 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             // Debug owns its QEMU/GDB transport. Build the Debug image explicitly with -NoRun so
             // stale/generated OS launchers can never start the SDK acceptance QEMU and race the IDE debugger.
             const launchArguments = mode === 'debug'
-                ? ['/d', '/c', 'call', debugBuildPath, projectManifestPath, '-Configuration', 'Debug', '-NoRun', '-ForceRebuild']
-                : ['/d', '/c', 'call', runPath, modeArgument];
-            const child = spawn('cmd.exe', launchArguments, {
+                ? ['os', 'build', projectManifestPath, '--configuration', 'Debug', '--force-rebuild', '--no-run']
+                : ['os', 'run', projectManifestPath, '--configuration', 'Release'];
+            const child = spawn(inuHostPath, launchArguments, {
                 cwd: projectRoot,
                 detached: false,
                 windowsHide: true,
@@ -3085,6 +3079,28 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
         }
     }
 
+    protected async verifyGeneratedOperatingSystem(projectRoot: string, configuration: InuProjectConfiguration): Promise<void> {
+        const osName = this.safeSegment(configuration.name);
+        const requiredFiles = [
+            'Inu.json',
+            'InuProject.json',
+            'InuKernel.csproj',
+            path.join('Boot', osName, 'Boot.cs'),
+            path.join('Kernel', osName, 'Kernel.cs')
+        ];
+        if (configuration.userland && configuration.shell !== 'none') {
+            requiredFiles.push(path.join('Userland', osName, 'Shell.cs'));
+        }
+
+        for (const relative of requiredFiles) {
+            const absolute = path.join(projectRoot, relative);
+            const stat = await fs.stat(absolute).catch(() => undefined);
+            if (!stat?.isFile() || stat.size === 0) {
+                throw new Error(`Generated OS is incomplete: required source file was not created: ${absolute}`);
+            }
+        }
+    }
+
     async createProject(configuration: InuProjectConfiguration): Promise<InuProjectResult> {
         this.projectGenerationPercent = 0;
         try {
@@ -3131,6 +3147,7 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             await fs.writeFile(path.join(projectRoot, 'PUBLIC-SDK-USAGE.md'), this.publicSdkUsageGuide(authoritativeConfiguration), 'utf8'); advance();
             await this.materializeTestOsMarker(projectRoot, authoritativeConfiguration); advance();
             await this.syncConfiguredQemuSettings(projectRoot, authoritativeConfiguration); advance();
+            await this.verifyGeneratedOperatingSystem(projectRoot, authoritativeConfiguration);
             await this.osRegistry.registerProject(projectRoot); advance();
             this.projectGenerationPercent = 100;
             return { success: true, projectPath: projectRoot, generatedProjects: generatedProjects.map(project => project.id) };
