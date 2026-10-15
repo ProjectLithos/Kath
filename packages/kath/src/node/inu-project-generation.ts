@@ -402,12 +402,44 @@ export abstract class InuProjectGenerationSupport {
         // the central kernel source plan; importing it here makes the validation surface available
         // without changing normal OS ownership/placement rules.
         if (configuration.projectKind === 'test-os' || areas.Storage || areas.Filesystems) directives.push('using Inu.Kernel.Storage;');
+        if (areas.Filesystems && configuration.filesystem !== 'none') directives.push('using Inu.Filesystem.FatFs;');
         if (configuration.graphics.length > 0) directives.push('using Inu.Kernel.Graphics;');
         if (areas.Input) directives.push('using Inu.Kernel.Input;');
         if (areas.Networking) directives.push('using Inu.Kernel.Networking;');
         if (configuration.audio !== 'none' && this.driverKind(configuration, `hardware:${configuration.audio}`) === 'kernel-module') directives.push('using Inu.Kernel.Audio;');
 
         return `${Array.from(new Set(directives)).join('\n')}\n\n`;
+    }
+
+    protected kernelStoragePolicy(configuration: InuProjectConfiguration): string {
+        const controllers = configuration.storageControllers.filter(value => value === 'nvme' || value === 'ahci');
+        if (controllers.length === 0 || configuration.filesystem === 'none') return '';
+
+        const lines: string[] = [
+            '        // Coder-owned storage layout. Change these calls to choose your own partition count,',
+            '        // formatting, mount points and initial directories. Inu never repartitions an existing',
+            '        // disk unless you explicitly replace EnsureGptPartitions with RepartitionGpt.'
+        ];
+        controllers.forEach((controller, index) => {
+            const variable = `${controller}${index}`;
+            const kind = controller === 'nvme' ? 'Nvme' : 'Ahci';
+            const firstMount = index === 0 ? '/' : `/${controller.toUpperCase()}1`;
+            const secondMount = index === 0 ? '/Partition2' : `/${controller.toUpperCase()}2`;
+            lines.push(`        if (!Storage.TryGetDrive(KernelStorageDeviceKind.${kind}, 0U, out KernelStorageDeviceHandle ${variable})) return false;`);
+            lines.push(`        if (!Storage.EnsureGptPartitions(${variable}, 2U)) return false; // change 2U to the partition count you want`);
+            lines.push(`        if (!Storage.TryGetPartition(${variable}, 1U, out KernelStorageVolumeHandle ${variable}p1)) return false;`);
+            lines.push(`        if (!FatFs.EnsureFat32(${variable}p1)) return false; // use FatFs.FormatFat32(...) for an explicit destructive reformat`);
+            lines.push(`        if (!FileSystem.Mount(${variable}p1, KernelFileSystemType.Fat32, "${firstMount}")) return false;`);
+            lines.push(`        if (!Storage.TryGetPartition(${variable}, 2U, out KernelStorageVolumeHandle ${variable}p2)) return false;`);
+            lines.push(`        if (!FatFs.EnsureFat32(${variable}p2)) return false;`);
+            lines.push(`        if (!FileSystem.Mount(${variable}p2, KernelFileSystemType.Fat32, "${secondMount}")) return false;`);
+            if (index === 0) {
+                lines.push('        if (!FileSystem.EnsureDirectory("/User")) return false;');
+                lines.push('        if (!FileSystem.EnsureDirectory("/Work")) return false;');
+                lines.push('        if (!FileSystem.EnsureDirectory("/Temp")) return false;');
+            }
+        });
+        return lines.join('\n') + '\n';
     }
 
     protected async materializeRequiredConsoleFont(projectRoot: string): Promise<void> {
@@ -515,6 +547,7 @@ public static class Boot
         // FileSystem.SetLogicalPath(FileSystemLogicalPath.Commands, ":System:Commands");
         // Processes.ConfigureGraphicalSession("/BIN/INU-DESKTOP.EXE", "/BIN/INU-LOGIN.EXE");
         // Processes.StartGraphicalSession();`;
+        const storagePolicy = this.kernelStoragePolicy(configuration);
         await this.writeCoderOwnedFile(path.join(projectRoot, 'Kernel', osName, 'Kernel.cs'),
 `${kernelUsings}namespace ${ns}.Kernel;
 
@@ -528,7 +561,7 @@ public static class Kernel
 {
     public static Boolean Start()
     {
-${kernelPolicy}
+${storagePolicy}${kernelPolicy}
         // Lifecycle facades remain available for FileSystem, Drivers, Graphics,
         // Input, Networking, Audio, Time and Power when those facilities are selected.
 ${kernelStartup}
@@ -1234,7 +1267,12 @@ public static unsafe class Kernel
         if (!TimerDispatchStartup.Initialize()) return false;
         if (!InputHardwareStartup.Initialize()) return false;
         if (!BootstrapGraphicsTransportStartup.Initialize()) return false;
-        if (!KernelStructuredLogging.InfoLine("microkernel", "Kernel.KMain", "Selected microkernel mechanisms are online; higher services remain outside the kernel.")) return false;
+        if (!DriverInfrastructureStartup.Initialize()) return false;
+        if (!InputHardwareStartup.EnableHardwareInterrupts()) return false;
+        if (!StorageHardwareStartup.Initialize()) return false;
+        if (!DriverBindingStartup.Initialize()) return false;
+        if (!FilesystemHardwareStartup.Initialize()) return false;
+        if (!KernelStructuredLogging.InfoLine("microkernel", "Kernel.KMain", "Selected microkernel mechanisms are online; drive layout policy is owned by the OS Kernel.cs.")) return false;
         if (!UserlandCommandStartup.Initialize(boot)) return false;
         if (!InterruptRuntimeStartup.Enable()) return false;
         return global::KathInu.${this.namespace(configuration.name)}.Kernel.Kernel.Start();
@@ -1274,6 +1312,7 @@ public static unsafe class Kernel
         if (!DriverInfrastructureStartup.Initialize()) return false;
         if (!InputHardwareStartup.EnableHardwareInterrupts()) return false;
         if (!GraphicsHardwareStartup.Initialize()) return false;
+        if (!StorageHardwareStartup.Initialize()) return false;
         if (!DriverBindingStartup.Initialize()) return false;
         if (!FilesystemHardwareStartup.Initialize()) return false;
         if (!KernelStructuredLogging.InfoLine("hybrid", "Kernel.KMain", "The OS-selected kernel-resident hardware components are online.")) return false;
@@ -1691,6 +1730,13 @@ public static unsafe class Kernel
             }
         }
         const kernelAreas = this.sdkKernelAreas(configuration);
+        // Storage drivers are kernel mechanisms until the Get/Set/Event storage service transport is complete.
+        // Their implementation source must therefore be available to StorageHardwareStartup even when the
+        // architecture graph describes the higher-level storage service outside the kernel.
+        if (kernelAreas.Storage && configuration.storageControllers.includes('nvme')) required.add('Inu.Kernel.Nvme');
+        if (kernelAreas.Storage && configuration.storageControllers.includes('ahci')) required.add('Inu.Kernel.Ahci');
+        if (kernelAreas.Storage && configuration.storageControllers.includes('virtio-block')) required.add('Inu.Kernel.Virtio');
+        if (kernelAreas.Filesystems && configuration.filesystem !== 'none') required.add('Inu.Filesystem.FatFs');
         if (kernelAreas.Input) required.add('Inu.Kernel.Ps2');
         if (kernelAreas.USB) {
             required.add('Inu.Usb.Xhci');
