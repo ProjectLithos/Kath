@@ -415,31 +415,48 @@ export abstract class InuProjectGenerationSupport {
         const controllers = configuration.storageControllers.filter(value => value === 'nvme' || value === 'ahci');
         if (controllers.length === 0 || configuration.filesystem === 'none') return '';
 
-        const lines: string[] = [
-            '        // Coder-owned storage layout. Change these calls to choose your own partition count,',
-            '        // formatting, mount points and initial directories. Inu never repartitions an existing',
-            '        // disk unless you explicitly replace EnsureGptPartitions with RepartitionGpt.'
-        ];
-        controllers.forEach((controller, index) => {
-            const variable = `${controller}${index}`;
-            const kind = controller === 'nvme' ? 'Nvme' : 'Ahci';
-            const firstMount = index === 0 ? '/' : `/${controller.toUpperCase()}1`;
-            const secondMount = index === 0 ? '/Partition2' : `/${controller.toUpperCase()}2`;
-            lines.push(`        if (!Storage.TryGetDrive(KernelStorageDeviceKind.${kind}, 0U, out KernelStorageDeviceHandle ${variable})) return false;`);
-            lines.push(`        if (!Storage.EnsureGptPartitions(${variable}, 2U)) return false; // change 2U to the partition count you want`);
-            lines.push(`        if (!Storage.TryGetPartition(${variable}, 1U, out KernelStorageVolumeHandle ${variable}p1)) return false;`);
-            lines.push(`        if (!FatFs.EnsureFat32(${variable}p1)) return false; // use FatFs.FormatFat32(...) for an explicit destructive reformat`);
-            lines.push(`        if (!FileSystem.Mount(${variable}p1, KernelFileSystemType.Fat32, "${firstMount}")) return false;`);
-            lines.push(`        if (!Storage.TryGetPartition(${variable}, 2U, out KernelStorageVolumeHandle ${variable}p2)) return false;`);
-            lines.push(`        if (!FatFs.EnsureFat32(${variable}p2)) return false;`);
-            lines.push(`        if (!FileSystem.Mount(${variable}p2, KernelFileSystemType.Fat32, "${secondMount}")) return false;`);
-            if (index === 0) {
-                lines.push('        if (!FileSystem.EnsureDirectory("/User")) return false;');
-                lines.push('        if (!FileSystem.EnsureDirectory("/Work")) return false;');
-                lines.push('        if (!FileSystem.EnsureDirectory("/Temp")) return false;');
+        const selectedKinds = controllers.map(controller => controller === 'nvme' ? 'KernelStorageDeviceKind.Nvme' : 'KernelStorageDeviceKind.Ahci');
+        const kindExpression = selectedKinds.map(kind => `driveKind == ${kind}`).join(' || ');
+        return `        // Detect every block drive that the kernel has discovered. The default policy below
+        // deliberately provisions only the selected NVMe/AHCI data drives; it leaves the
+        // VirtIO boot/system drive untouched. Change this loop to implement a different policy.
+        Boolean primaryDataDriveMounted = false;
+        UInt32 detectedDriveCount = Storage.GetDriveCount();
+        for (UInt32 driveOrdinal = 0U; driveOrdinal < detectedDriveCount; driveOrdinal++)
+        {
+            if (!Storage.TryGetDrive(driveOrdinal, out KernelStorageDeviceHandle drive, out KernelStorageDeviceKind driveKind, out KernelStorageGeometry geometry)) return false;
+            if (geometry.ReadOnly) continue;
+            if (!(${kindExpression})) continue;
+
+            // Coder-owned drive setup. Change 2U to the partition count you want.
+            // EnsureGptPartitions preserves an existing partition table; use RepartitionGpt
+            // only when you explicitly intend to destroy the current layout.
+            if (!Storage.EnsureGptPartitions(drive, 2U)) return false;
+            if (!Storage.TryGetPartition(drive, 1U, out KernelStorageVolumeHandle partition1)) return false;
+            if (!Storage.TryGetPartition(drive, 2U, out KernelStorageVolumeHandle partition2)) return false;
+            if (!FatFs.EnsureFat32(partition1)) return false;
+            if (!FatFs.EnsureFat32(partition2)) return false;
+
+            // Mount at least one real writable partition. Additional detected drives remain
+            // available to the coder through this same enumeration loop for custom mount points.
+            if (!primaryDataDriveMounted)
+            {
+                if (!FileSystem.Mount(partition1, KernelFileSystemType.Fat32, "/")) return false;
+                if (!FileSystem.Mount(partition2, KernelFileSystemType.Fat32, "/Partition2")) return false;
+                primaryDataDriveMounted = true;
             }
-        });
-        return lines.join('\n') + '\n';
+        }
+        if (!primaryDataDriveMounted) return false;
+
+        // These are physical directories on the mounted writable filesystem. Their logical
+        // meanings and the path separator were configured above before any drive was touched.
+        if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.WritableUser))) return false;
+        if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.ReadableFonts))) return false;
+        if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.Commands))) return false;
+        if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.Applications))) return false;
+        if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.Libraries))) return false;
+        if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.Temporary))) return false;
+`;
     }
 
     protected async materializeRequiredConsoleFont(projectRoot: string): Promise<void> {
@@ -527,24 +544,32 @@ public static class Boot
             : configuration.startupModel === 'cli' || configuration.startupModel === 'cli-gui'
                 ? `        return TextSession.Run();`
                 : '        return true;';
-        const kernelPolicy = configuration.projectKind === 'test-os'
+        const filesystemPolicy = configuration.filesystem !== 'none'
+            ? `        // Path/folder policy is established before any disk is partitioned, formatted or mounted.
+        // The coder owns these values and may change the separator and logical paths directly.
+        if (!FileSystem.SetPathPolicy(new FileSystemPathPolicy('/', false, 20, false, true, "*?<>|"))) return false;
+        if (!FileSystem.SetPathSeparator('/')) return false;
+        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.ReadableUser, "/User")) return false;
+        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.WritableUser, "/User")) return false;
+        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.VisibleUser, "/User/{user}")) return false;
+        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.ReadableFonts, "/System/Fonts")) return false;
+        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.WritableFonts, "/System/Fonts")) return false;
+        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.VisibleFonts, "/System/Fonts")) return false;
+        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.Commands, "/System/Commands")) return false;
+        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.Applications, "/System/Applications")) return false;
+        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.Libraries, "/System/Libraries")) return false;
+        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.Temporary, "/Temp")) return false;`
+            : '';
+        const generalPolicy = configuration.projectKind === 'test-os'
             ? `        Scheduler.SetQuantumMilliseconds(5);
         Smp.SetRole(KernelCpuRole.Kernel, 0);
         Smp.SetRole(KernelCpuRole.Userland, KernelCpuSet.All());
-        Console.SetBufferCount(0); // automatic; 1/2/3 select explicit buffering
-        FileSystem.SetPathPolicy(new FileSystemPathPolicy('/', false, 20, false, true, "*?<>|"));
-        FileSystem.SetLogicalPath(FileSystemLogicalPath.WritableUser, "/User");
-        FileSystem.SetLogicalPath(FileSystemLogicalPath.VisibleUser, "/User/{user}");
-        FileSystem.SetLogicalPath(FileSystemLogicalPath.Commands, "/System/Commands");`
+        Console.SetBufferCount(0); // automatic; 1/2/3 select explicit buffering`
             : `        // This method owns post-bootstrap OS policy. Examples:
         // Scheduler.SetQuantumMilliseconds(5);
         // Smp.SetRole(KernelCpuRole.Kernel, 0);
         // Smp.SetRole(KernelCpuRole.Userland, KernelCpuSet.All());
         // Console.SetBufferCount(0); // automatic; 1/2/3 select explicit buffering
-        // FileSystem.SetPathPolicy(new FileSystemPathPolicy(':', false, 20, false, true, "*?<>|"));
-        // FileSystem.SetLogicalPath(FileSystemLogicalPath.WritableUser, ":User");
-        // FileSystem.SetLogicalPath(FileSystemLogicalPath.VisibleUser, ":User:{user}");
-        // FileSystem.SetLogicalPath(FileSystemLogicalPath.Commands, ":System:Commands");
         // Processes.ConfigureGraphicalSession("/BIN/INU-DESKTOP.EXE", "/BIN/INU-LOGIN.EXE");
         // Processes.StartGraphicalSession();`;
         const storagePolicy = this.kernelStoragePolicy(configuration);
@@ -561,8 +586,9 @@ public static class Kernel
 {
     public static Boolean Start()
     {
-${storagePolicy}${kernelPolicy}
-        // Lifecycle facades remain available for FileSystem, Drivers, Graphics,
+${generalPolicy}
+${filesystemPolicy}
+${storagePolicy}        // Lifecycle facades remain available for FileSystem, Drivers, Graphics,
         // Input, Networking, Audio, Time and Power when those facilities are selected.
 ${kernelStartup}
     }
