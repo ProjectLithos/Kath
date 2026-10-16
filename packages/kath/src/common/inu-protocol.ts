@@ -675,7 +675,7 @@ export interface InuTargetMutationResult { success: boolean; state?: InuTargetSt
 
 
 export type InuAnalyzerSeverity = 'error' | 'warning' | 'info';
-export type InuAnalyzerCategory = 'boundary' | 'architecture' | 'kernel-safety' | 'driver-capability' | 'interrupt-safety' | 'userland-safety';
+export type InuAnalyzerCategory = 'csharp' | 'boundary' | 'architecture' | 'kernel-safety' | 'driver-capability' | 'interrupt-safety' | 'userland-safety';
 
 export interface InuAnalyzerDiagnostic {
     code: string;
@@ -986,6 +986,14 @@ export interface InuSdkReferenceSymbol {
     assembly: string;
 }
 
+export type InuSdkExecutionArea = 'Boot' | 'Kernel' | 'Userland';
+
+export interface InuSdkApiNamespaceModel {
+    namespace: string;
+    area: InuSdkExecutionArea;
+    publicItems: string[];
+}
+
 export interface InuSdkReferenceSyncResult {
     success: boolean;
     projectFile?: string;
@@ -1001,6 +1009,7 @@ export interface InuProjectService {
     synchronizeSdkReferences(sourcePath: string, sourceText: string): Promise<InuSdkReferenceSyncResult>;
     materializeSdkLibraryForSymbol(sourcePath: string, symbolName: string): Promise<InuProjectResult>;
     getSdkApiSiteUrl(): Promise<string>;
+    getSdkApiModel(): Promise<InuSdkApiNamespaceModel[]>;
     listOperatingSystems(): Promise<InuOperatingSystem[]>;
     getDefaultOperatingSystemLocation(): Promise<string>;
     nextDefaultOperatingSystemName(baseName: string, location?: string): Promise<string>;

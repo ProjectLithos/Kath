@@ -7,7 +7,7 @@ import { InuAnalyzerDiagnostic, InuAnalyzerSeverity, InuAnalyzerSnapshot, InuPro
 @injectable()
 export class InuStaticAnalyzerWidget extends ReactWidget {
     static readonly ID = 'inu.static.analyzers';
-    static readonly LABEL = 'Inu OS Analyzers';
+    static readonly LABEL = 'C# / Inu Analyzers';
 
     @inject(WorkspaceService) protected readonly workspaceService!: WorkspaceService;
     @inject(InuProjectService) protected readonly projectService!: InuProjectService;
@@ -21,7 +21,7 @@ export class InuStaticAnalyzerWidget extends ReactWidget {
     protected init(): void {
         this.id = InuStaticAnalyzerWidget.ID;
         this.title.label = InuStaticAnalyzerWidget.LABEL;
-        this.title.caption = 'Inu kernel, driver, architecture and userland static analyzers';
+        this.title.caption = 'Roslyn C# diagnostics plus Inu kernel, driver, architecture and userland rules';
         this.title.closable = true;
         this.addClass('inu-static-analyzer-widget');
         this.toDispose.push(this.workspaceService.onWorkspaceLocationChanged(() => {
@@ -67,9 +67,9 @@ export class InuStaticAnalyzerWidget extends ReactWidget {
     protected render(): React.ReactNode {
         const diagnostics = this.visibleDiagnostics();
         return <div className='inu-tool-page'>
-            <div className='inu-tool-header'><div><h2>OS-specific Static Analyzers</h2><p>Analyze Inu kernel, driver and userland source using OS architecture and capability rules rather than generic C# style checks.</p></div><div className='inu-tool-actions'><select value={this.severity} onChange={e => { this.severity = e.target.value as typeof this.severity; this.update(); }}><option value='all'>All severities</option><option value='error'>Errors</option><option value='warning'>Warnings</option><option value='info'>Information</option></select><button className='theia-button main' disabled={!this.root() || this.loading} onClick={() => void this.analyze()}>{this.loading ? 'Analyzing…' : 'Analyze OS'}</button></div></div>
+            <div className='inu-tool-header'><div><h2>Roslyn + Inu Analyzers</h2><p>Use Microsoft Roslyn for C# syntax/compiler diagnostics, then apply Inu-specific architecture, capability and execution-boundary rules.</p></div><div className='inu-tool-actions'><select value={this.severity} onChange={e => { this.severity = e.target.value as typeof this.severity; this.update(); }}><option value='all'>All severities</option><option value='error'>Errors</option><option value='warning'>Warnings</option><option value='info'>Information</option></select><button className='theia-button main' disabled={!this.root() || this.loading} onClick={() => void this.analyze()}>{this.loading ? 'Analyzing…' : 'Analyze OS'}</button></div></div>
             {!this.root() && <p>Open a Inu operating system to run the analyzers.</p>}
-            {this.root() && !this.snapshot && !this.loading && <section className='inu-engineering-section'><h3>Analyzer scope</h3><p>Checks kernel/userland boundaries, architecture leakage, blocking/exception/async kernel patterns, interrupt-handler allocations, and driver capability declarations. Generated output, SDK sources, bin/obj and IDE metadata are excluded.</p></section>}
+            {this.root() && !this.snapshot && !this.loading && <section className='inu-engineering-section'><h3>Analyzer scope</h3><p>Roslyn supplies the C# language diagnostics. Inu adds kernel/userland boundaries, architecture leakage, execution-safety and driver-capability diagnostics. Generated output, SDK sources, bin/obj and IDE metadata are excluded.</p></section>}
             {this.snapshot && <>
                 <div className='inu-analyzer-summary'>
                     <div><strong>{this.snapshot.errorCount}</strong><span>Errors</span></div><div><strong>{this.snapshot.warningCount}</strong><span>Warnings</span></div><div><strong>{this.snapshot.infoCount}</strong><span>Info</span></div><div><strong>{this.snapshot.filesAnalyzed}</strong><span>C# files</span></div><div><strong>{this.snapshot.targetArchitecture ?? 'unknown'}</strong><span>Active target</span></div>

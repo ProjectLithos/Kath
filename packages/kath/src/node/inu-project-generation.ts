@@ -390,6 +390,25 @@ export abstract class InuProjectGenerationSupport {
         }
     }
 
+
+    protected sdkFreestandingPublicNamespaces(category: 'Boot' | 'Kernel' | 'Userland' | 'Freestanding .NET'): string[] {
+        try {
+            const contract = JSON.parse(fsSync.readFileSync(path.join(INU_SDK_ROOT, 'Inu.ApiContract.json'), 'utf8')) as { codingApi?: { exports?: Array<{ namespace?: string; category?: string; status?: string; assembly?: string }> } };
+            const result = new Set<string>();
+            for (const entry of contract.codingApi?.exports ?? []) {
+                if (entry.category !== category || entry.status === 'planned' || !entry.namespace || !entry.assembly) continue;
+                const projectFile = path.join(INU_SDK_ROOT, 'src', entry.assembly, `${entry.assembly}.csproj`);
+                try {
+                    const projectText = fsSync.readFileSync(projectFile, 'utf8');
+                    if (/<DisableImplicitFrameworkReferences>\s*true\s*<\/DisableImplicitFrameworkReferences>/.test(projectText)) result.add(entry.namespace);
+                } catch { }
+            }
+            return Array.from(result).sort((a, b) => a.localeCompare(b));
+        } catch {
+            return [];
+        }
+    }
+
     protected kernelUsingDirectives(configuration: InuProjectConfiguration): string {
         // Kernel/<OSName>/Kernel.cs is coder-owned policy source. Never inherit imports
         // from Inu's generated bootstrap implementation: bootstrap/HAL namespaces are
@@ -543,7 +562,7 @@ export abstract class InuProjectGenerationSupport {
         const ns = `KathInu.${this.namespace(configuration.name)}`;
         const kernelUsings = this.kernelUsingDirectives(configuration);
         const bootUsings = configuration.projectKind === 'test-os'
-            ? this.sdkPublicNamespaces('Boot').map(namespaceName => `using ${namespaceName};`).join('\n') + '\n\n'
+            ? this.sdkFreestandingPublicNamespaces('Boot').map(namespaceName => `using ${namespaceName};`).join('\n') + '\n\n'
             : '';
         const userlandTestUsings = configuration.projectKind === 'test-os'
             ? Array.from(new Set([...this.sdkPublicNamespaces('Userland'), ...this.sdkPublicNamespaces('Freestanding .NET')]))

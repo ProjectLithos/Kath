@@ -86,6 +86,7 @@ import {
     InuDeviceTreeSnapshot,
     InuSdkReferenceSymbol,
     InuSdkReferenceSyncResult,
+    InuSdkApiNamespaceModel,
     InuProjectService
 } from '../common/inu-protocol';
 
@@ -347,6 +348,19 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
         const indexPath = path.join(INU_SDK_ROOT, 'Help', 'index.html');
         await fs.access(indexPath);
         return pathToFileURL(indexPath).toString();
+    }
+
+    async getSdkApiModel(): Promise<InuSdkApiNamespaceModel[]> {
+        const inuExe = path.join(path.dirname(INU_SDK_ROOT), 'Bin', 'inu.exe');
+        const result = spawnSync(inuExe, ['sdk', 'api'], { cwd: path.dirname(INU_SDK_ROOT), encoding: 'utf8', windowsHide: true });
+        if (result.status !== 0) throw new Error((result.stderr || result.stdout || 'Inu SDK API model could not be loaded.').trim());
+        const parsed = JSON.parse(result.stdout || '[]') as Array<{ namespace?: string; area?: number | string; publicItems?: string[] }>;
+        const areaName = (area: number | string | undefined): InuSdkApiNamespaceModel['area'] => {
+            if (area === 0 || area === 'Boot') return 'Boot';
+            if (area === 1 || area === 'Kernel') return 'Kernel';
+            return 'Userland';
+        };
+        return parsed.filter(item => !!item.namespace).map(item => ({ namespace: item.namespace!, area: areaName(item.area), publicItems: Array.isArray(item.publicItems) ? item.publicItems : [] }));
     }
 
     async getDefaultOperatingSystemLocation(): Promise<string> {
@@ -659,6 +673,20 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             let text: string;
             try { text = await fs.readFile(filePath, 'utf8'); } catch { continue; }
             filesAnalyzed++;
+
+            // Roslyn is the authoritative C# parser/diagnostic engine. Kath retains only
+            // Inu-specific architecture/capability rules below. This keeps language semantics
+            // aligned with the compiler instead of duplicating a C# parser in TypeScript.
+            try {
+                const inuExe = path.join(path.dirname(INU_SDK_ROOT), 'Bin', 'inu.exe');
+                const roslyn = spawnSync(inuExe, ['analyze', filePath], { cwd: projectRoot, encoding: 'utf8', windowsHide: true });
+                const parsed = JSON.parse((roslyn.stdout || '[]').trim() || '[]') as Array<{ id?: string; severity?: string; message?: string; line?: number; column?: number }>;
+                for (const diagnostic of parsed) {
+                    const severity = String(diagnostic.severity || '').toLowerCase();
+                    if (severity !== 'error' && severity !== 'warning' && severity !== 'info') continue;
+                    add(diagnostic.id || 'CS0000', severity as InuAnalyzerDiagnostic['severity'], 'csharp', diagnostic.message || 'C# diagnostic', filePath, diagnostic.line || 1, diagnostic.column || 1, 'roslyn');
+                }
+            } catch { }
             const relative = path.relative(projectRoot, filePath).replace(/\\/g, '/');
             const lower = relative.toLowerCase();
             const inKernel = lower === 'kernel/kernel.cs' || lower.startsWith('kernel/');
@@ -3000,6 +3028,14 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
         await this.materializeCoderOwnedSource(projectRoot, authoritativeConfiguration);
     }
 
+    protected runHostedProjectFinalizer(projectRoot: string): void {
+        const inuExe = path.join(path.dirname(INU_SDK_ROOT), 'Bin', 'inu.exe');
+        const result = spawnSync(inuExe, ['project', 'create', '--output', projectRoot, '--sdk-root', INU_SDK_ROOT], { cwd: projectRoot, encoding: 'utf8', windowsHide: true });
+        if (result.status !== 0) {
+            throw new Error((result.stderr || result.stdout || `Inu hosted project finalizer exited with ${result.status ?? 'unknown status'}.`).trim());
+        }
+    }
+
     async readProjectConfiguration(projectPath: string): Promise<InuConfigurationResult> {
         try {
             const projectRoot = this.requireOperatingSystemRoot(projectPath);
@@ -3070,6 +3106,7 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             await fs.writeFile(path.join(projectRoot, 'README.md'), this.projectReadme(authoritativeConfiguration, generatedProjects), 'utf8'); advance();
             await fs.writeFile(path.join(projectRoot, 'PUBLIC-SDK-USAGE.md'), this.publicSdkUsageGuide(authoritativeConfiguration), 'utf8'); advance();
             await this.materializeTestOsMarker(projectRoot, authoritativeConfiguration); advance();
+            this.runHostedProjectFinalizer(projectRoot); advance();
             await this.syncConfiguredQemuSettings(projectRoot, authoritativeConfiguration); advance();
             this.projectGenerationPercent = 100;
             return { success: true, projectPath: projectRoot, generatedProjects: generatedProjects.map(project => project.id) };
@@ -3146,6 +3183,7 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
             await fs.writeFile(path.join(projectRoot, 'README.md'), this.projectReadme(authoritativeConfiguration, generatedProjects), 'utf8'); advance();
             await fs.writeFile(path.join(projectRoot, 'PUBLIC-SDK-USAGE.md'), this.publicSdkUsageGuide(authoritativeConfiguration), 'utf8'); advance();
             await this.materializeTestOsMarker(projectRoot, authoritativeConfiguration); advance();
+            this.runHostedProjectFinalizer(projectRoot); advance();
             await this.syncConfiguredQemuSettings(projectRoot, authoritativeConfiguration); advance();
             await this.verifyGeneratedOperatingSystem(projectRoot, authoritativeConfiguration);
             await this.osRegistry.registerProject(projectRoot); advance();

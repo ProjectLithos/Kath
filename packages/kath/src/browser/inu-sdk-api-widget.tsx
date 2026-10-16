@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { inject, injectable, postConstruct } from 'inversify';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
-import { InuProjectService } from '../common/inu-protocol';
+import { InuProjectService, InuSdkApiNamespaceModel } from '../common/inu-protocol';
 
 @injectable()
 export class InuSdkApiWidget extends ReactWidget {
@@ -13,6 +13,7 @@ export class InuSdkApiWidget extends ReactWidget {
 
     protected siteUrl = '';
     protected error = '';
+    protected apiModel: InuSdkApiNamespaceModel[] = [];
 
     @postConstruct()
     protected init(): void {
@@ -26,7 +27,7 @@ export class InuSdkApiWidget extends ReactWidget {
 
     protected async loadSite(): Promise<void> {
         try {
-            this.siteUrl = await this.projectService.getSdkApiSiteUrl();
+            [this.siteUrl, this.apiModel] = await Promise.all([this.projectService.getSdkApiSiteUrl(), this.projectService.getSdkApiModel()]);
             this.error = '';
         } catch (error) {
             this.error = error instanceof Error ? error.message : String(error);
@@ -46,10 +47,11 @@ export class InuSdkApiWidget extends ReactWidget {
         if (!this.siteUrl) {
             return <div className='inu-tool-page'><h2>Inu SDK Help</h2><p>Loading bundled SDK Help…</p></div>;
         }
-        return <iframe
+        const areas = ['Boot', 'Kernel', 'Userland'].map(area => `${area}: ${this.apiModel.filter(item => item.area === area).length} using(s)`).join(' · ');
+        return <div className='inu-sdk-api-container'><div className='inu-sdk-api-model-summary'>Typed .NET SDK model · {areas}</div><iframe
             className='inu-sdk-api-frame'
             src={this.siteUrl}
             title='Inu SDK Help'
-        />;
+        /></div>;
     }
 }

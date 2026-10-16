@@ -497,7 +497,8 @@ export class InuEditorEnvironmentContribution implements FrontendApplicationCont
                         } else if (verbatim && value === '"' && raw[i + 1] === '"') { i++; continue; }
                         const code = value.length === 1 ? value.charCodeAt(0) : 0;
                         const filenameFriendly = /[A-Za-z0-9._ -]/.test(value);
-                        const separatorLike = code > 0 && code <= 0x7f && !filenameFriendly;
+                        const placeholderDelimiter = value === '{' || value === '}';
+                        const separatorLike = code > 0 && code <= 0x7f && !filenameFriendly && !placeholderDelimiter;
                         if (separatorLike && value !== selected) {
                             const shown = value === '\\' ? '\\\\' : value;
                             addMarker(absoluteStart + i, sourceLength, 'INU1007', `Path uses '${shown}' but the active kernel path separator is '${selected}'.`);

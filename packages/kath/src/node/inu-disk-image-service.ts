@@ -1,3 +1,4 @@
+import { spawnSync } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import {
@@ -19,6 +20,23 @@ export class InuDiskImageService {
     async listDiskImages(projectPath: string): Promise<InuDiskImageDescriptor[]> {
         const projectRoot = path.resolve(projectPath);
         if (!this.isOperatingSystemPath(projectRoot)) return [];
+
+        // Disk discovery/format identification is a host concern. Prefer the typed C# Inu host
+        // service and keep the TypeScript implementation below only as a compatibility fallback.
+        try {
+            const inuExe = path.join(path.dirname(this.sdkRoot), 'Bin', 'inu.exe');
+            const host = spawnSync(inuExe, ['host', 'disk', 'list', projectRoot], { cwd: projectRoot, encoding: 'utf8', windowsHide: true });
+            if (host.status === 0 && host.stdout.trim()) {
+                const parsed = JSON.parse(host.stdout) as Array<{ Name?: string; Path?: string; SizeBytes?: number; FormatHint?: string; ModifiedUtc?: string }>;
+                if (Array.isArray(parsed)) return parsed.filter(item => !!item.Path).map(item => {
+                    const imagePath = path.resolve(item.Path!);
+                    const sdkArtifacts = path.resolve(this.sdkRoot, 'Artifacts');
+                    const rel = path.relative(sdkArtifacts, imagePath);
+                    const origin: 'os' | 'sdk' = rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel)) ? 'sdk' : 'os';
+                    return { id: `${origin}:${imagePath.toLowerCase()}`, name: item.Name || path.basename(imagePath), path: imagePath, origin, sizeBytes: item.SizeBytes || 0, modifiedUtc: item.ModifiedUtc || new Date(0).toISOString(), formatHint: item.FormatHint || 'Raw disk image' };
+                });
+            }
+        } catch { }
         const result: InuDiskImageDescriptor[] = [];
         const seen = new Set<string>();
         const extensions = new Set(['.img', '.raw', '.iso', '.vhd', '.vhdx', '.bin']);
