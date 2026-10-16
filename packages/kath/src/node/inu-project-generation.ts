@@ -34,7 +34,7 @@ export abstract class InuProjectGenerationSupport {
     protected normaliseKathInuConfiguration(configuration: InuProjectConfiguration): InuProjectConfiguration {
         const incoming = configuration as InuProjectConfiguration & { schemaVersion?: number };
         const kernelArchitecture = ['monolithic','microkernel','hybrid','custom'].includes(String(incoming.kernelArchitecture))
-            ? incoming.kernelArchitecture : 'monolithic';
+            ? incoming.kernelArchitecture : 'microkernel';
         const startupModel = ['none','cli','gui','cli-gui','custom'].includes(String((incoming as any).startupModel))
             ? (incoming as any).startupModel : ((incoming as any).gui && (incoming as any).gui !== 'none' ? ((incoming as any).shell && (incoming as any).shell !== 'none' ? 'cli-gui' : 'gui') : ((incoming as any).shell && (incoming as any).shell !== 'none' ? 'cli' : 'none'));
         const executableFormats = Array.isArray((incoming as any).executableFormats) && (incoming as any).executableFormats.length
@@ -1516,8 +1516,8 @@ public static unsafe class Kernel
             // When the OS author selects them, materialize those mechanisms even for a microkernel
             // GUI so the ring-3 desktop/login can receive real input events. Kath may move a future
             // userland-capable provider out of the kernel without changing the GUI contract.
-            USB: testOs || (monolithic && configuration.drivers.some(value => value.startsWith('usb-'))) || configuration.input.some(value => value.startsWith('usb-hid-')),
-            Input: testOs || monolithic || hybrid || configuration.input.length > 0,
+            USB: configuration.drivers.some(value => value.startsWith('usb-')) || configuration.input.some(value => value.startsWith('usb-hid-')),
+            Input: configuration.input.length > 0,
             Processes: true,
             Scheduler: configuration.scheduler !== 'none',
             SystemCalls: true,
@@ -1538,6 +1538,8 @@ public static unsafe class Kernel
             `INU_KERNEL_${model.toUpperCase()}`,
             ...names.filter(name => areas[name]).map(name => `INU_WORKAREA_${name.replace(/[^A-Za-z0-9]/g, '_').toUpperCase()}`),
             ...names.filter(name => areas[name]).map(name => `INU_KERNELAREA_${name.replace(/[^A-Za-z0-9]/g, '_').toUpperCase()}`),
+            ...(configuration.input.some(value => value === 'ps2-keyboard' || value === 'ps2-mouse') ? ['INU_INPUT_PS2'] : []),
+            ...(configuration.input.some(value => value === 'usb-hid-keyboard' || value === 'usb-hid-mouse') ? ['INU_INPUT_USB_HID'] : []),
                         ...(areas.Processes ? ['INU_COMPONENT_PROCESS_LIFECYCLE', 'INU_COMPONENT_PROCESS_ADDRESS_SPACE_OWNERSHIP', 'INU_COMPONENT_PROCESS_FOREGROUND_CONTROL', 'INU_COMPONENT_PROCESS_SIGNALS'] : []),
             ...(areas.Scheduler ? ['INU_COMPONENT_SCHEDULER_PRIORITY_POLICY', 'INU_COMPONENT_SCHEDULER_LOAD_AWARE_PLACEMENT'] : []),
 ...(areas.Networking ? ['INU_COMPONENT_NETWORK_ROUTE_MANAGER', 'INU_COMPONENT_NETWORK_NEIGHBOR_CACHE', 'INU_COMPONENT_NETWORK_SOCKET_SERVICE', 'INU_COMPONENT_NETWORK_DHCP_CODEC', 'INU_COMPONENT_NETWORK_DNS_CODEC', 'INU_COMPONENT_NETWORK_ARP_PROTOCOL', 'INU_COMPONENT_NETWORK_IPV4_PROTOCOL', 'INU_COMPONENT_NETWORK_ICMPV4_PROTOCOL', 'INU_COMPONENT_NETWORK_UDP_IPV4_PROTOCOL', 'INU_COMPONENT_NETWORK_TCP_OBSERVATION_PROTOCOL', 'INU_COMPONENT_NETWORK_IPV6_NDP_PROTOCOL'] : []),
@@ -1836,7 +1838,7 @@ public static unsafe class Kernel
         if (kernelAreas.Storage && configuration.storageControllers.includes('ahci')) required.add('Inu.Kernel.Ahci');
         if (kernelAreas.Storage && configuration.storageControllers.includes('virtio-block')) required.add('Inu.Kernel.Virtio');
         if (kernelAreas.Filesystems && configuration.filesystem !== 'none') required.add('Inu.Filesystem.FatFs');
-        if (kernelAreas.Input) required.add('Inu.Kernel.Ps2');
+        if (configuration.input.some(value => value === 'ps2-keyboard' || value === 'ps2-mouse')) required.add('Inu.Kernel.Ps2');
         if (kernelAreas.USB) {
             required.add('Inu.Usb.Xhci');
             required.add('Inu.Usb.Hub');

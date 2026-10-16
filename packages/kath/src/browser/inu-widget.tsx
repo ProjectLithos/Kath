@@ -77,7 +77,7 @@ export class InuWidget extends BaseWidget {
             author: 'The DCL Group',
             location: '',
             logoPath: '',
-            kernelArchitecture: 'monolithic',
+            kernelArchitecture: 'microkernel',
             targetArchitecture: 'x86_64',
             bootArchitecture: 'uefi',
             executableFormats: ['elf64', 'pe64'],
@@ -405,7 +405,7 @@ export class InuWidget extends BaseWidget {
 
     protected applyTestOsPreset(configuration: InuProjectConfiguration): void {
         configuration.projectKind = 'test-os';
-        configuration.kernelArchitecture = 'monolithic';
+        configuration.kernelArchitecture = 'microkernel';
         configuration.startupModel = 'cli';
         configuration.qemuAccelerator = 'auto';
         configuration.qemuCpuCount = 4;
