@@ -446,43 +446,72 @@ export abstract class InuProjectGenerationSupport {
 
     protected kernelStoragePolicy(configuration: InuProjectConfiguration): string {
         const controllers = configuration.storageControllers.filter(value => value === 'nvme' || value === 'ahci');
-        if (controllers.length === 0 || configuration.filesystem === 'none') return '';
+        if (configuration.filesystem === 'none') return '';
 
         const selectedKinds = controllers.map(controller => controller === 'nvme' ? 'KernelStorageDeviceKind.Nvme' : 'KernelStorageDeviceKind.Ahci');
-        const kindExpression = selectedKinds.map(kind => `driveKind == ${kind}`).join(' || ');
-        return `        // Detect every block drive that the kernel has discovered. The default policy below
-        // deliberately provisions only the selected NVMe/AHCI data drives; it leaves the
-        // VirtIO boot/system drive untouched. Change this loop to implement a different policy.
-        Boolean primaryDataDriveMounted = false;
+        const provisionExpression = selectedKinds.length === 0 ? 'false' : selectedKinds.map(kind => `driveKind == ${kind}`).join(' || ');
+        return `        // The bootable block drive is the system drive. All other detected drives remain
+        // additional mounted volumes and can never replace the system root implicitly.
+        if (!Storage.TryGetSystemDrive(out KernelStorageDeviceHandle systemDrive)) return false;
+
+        // Mount the filesystem that contains the booted system image as the system root.
+        Boolean systemMounted = false;
+        KernelStorageVolumeHandle systemRootVolume = default;
+        UInt32 detectedVolumeCount = Storage.GetVolumeCount();
+        for (UInt32 volumeOrdinal = 0U; volumeOrdinal < detectedVolumeCount; volumeOrdinal++)
+        {
+            if (!Storage.TryGetVolume(volumeOrdinal, out KernelStorageVolumeHandle volume, out KernelStorageDeviceHandle owner, out KernelPartitionInfo partition)) continue;
+            if (owner.Value != systemDrive.Value) continue;
+            if (!FatFs.TryGetFileSystemType(volume, out KernelFileSystemType fileSystemType)) continue;
+            if (!FileSystem.Mount(volume, fileSystemType, "/")) return false;
+            systemRootVolume = volume;
+            systemMounted = true;
+            break;
+        }
+        if (!systemMounted) return false;
+
+        // The system drive owns the root namespace. Every additional mountable drive/partition
+        // is exposed beneath /Drives and does not become a second system drive.
+        if (!FileSystem.EnsureDirectory("/Drives")) return false;
+
         UInt32 detectedDriveCount = Storage.GetDriveCount();
         for (UInt32 driveOrdinal = 0U; driveOrdinal < detectedDriveCount; driveOrdinal++)
         {
-            if (!Storage.TryGetDrive(driveOrdinal, out KernelStorageDeviceHandle drive, out KernelStorageDeviceKind driveKind, out KernelStorageGeometry geometry)) return false;
-            if (geometry.ReadOnly) continue;
-            if (!(${kindExpression})) continue;
+            if (!Storage.TryGetDrive(driveOrdinal, out KernelStorageDeviceHandle drive, out KernelStorageDeviceKind driveKind, out KernelStorageGeometry geometry)) continue;
 
-            // Coder-owned drive setup. Change 2U to the partition count you want.
-            // EnsureGptPartitions preserves an existing partition table; use RepartitionGpt
-            // only when you explicitly intend to destroy the current layout.
-            if (!Storage.EnsureGptPartitions(drive, 2U)) return false;
-            if (!Storage.TryGetPartition(drive, 1U, out KernelStorageVolumeHandle partition1)) return false;
-            if (!Storage.TryGetPartition(drive, 2U, out KernelStorageVolumeHandle partition2)) return false;
-            if (!FatFs.EnsureFat32(partition1)) return false;
-            if (!FatFs.EnsureFat32(partition2)) return false;
-
-            // Mount at least one real writable partition. Additional detected drives remain
-            // available to the coder through this same enumeration loop for custom mount points.
-            if (!primaryDataDriveMounted)
+            // New selected writable NVMe/AHCI data disks get the default two-partition layout.
+            // Existing partition tables and filesystems are preserved. RepartitionGpt/FormatFat32
+            // remain explicit destructive choices for the OS author.
+            Boolean createdLayout = false;
+            if (!geometry.ReadOnly && !Storage.IsSystemDrive(drive) && (${provisionExpression}))
             {
-                if (!FileSystem.Mount(partition1, KernelFileSystemType.Fat32, "/")) return false;
-                if (!FileSystem.Mount(partition2, KernelFileSystemType.Fat32, "/Partition2")) return false;
-                primaryDataDriveMounted = true;
+                if (!Storage.EnsureGptPartitions(drive, 2U, out createdLayout)) continue;
+                if (createdLayout)
+                {
+                    if (Storage.TryGetPartition(drive, 1U, out KernelStorageVolumeHandle newPartition1) && !FatFs.EnsureFat32(newPartition1)) return false;
+                    if (Storage.TryGetPartition(drive, 2U, out KernelStorageVolumeHandle newPartition2) && !FatFs.EnsureFat32(newPartition2)) return false;
+                }
+            }
+
+            String drivePath = "/Drives/Drive" + driveOrdinal.ToString();
+            if (!FileSystem.EnsureDirectory(drivePath)) return false;
+
+            // Mount every recognized filesystem volume belonging to this drive. The system root
+            // volume is already mounted at /, so it is not mounted a second time.
+            UInt32 volumeCount = Storage.GetVolumeCount();
+            for (UInt32 volumeOrdinal = 0U; volumeOrdinal < volumeCount; volumeOrdinal++)
+            {
+                if (!Storage.TryGetVolume(volumeOrdinal, out KernelStorageVolumeHandle volume, out KernelStorageDeviceHandle owner, out KernelPartitionInfo partition)) continue;
+                if (owner.Value != drive.Value) continue;
+                if (systemMounted && volume.Value == systemRootVolume.Value) continue;
+                if (!FatFs.TryGetFileSystemType(volume, out KernelFileSystemType fileSystemType)) continue;
+                String mountPath = drivePath + "/Partition" + (partition.Index + 1U).ToString();
+                if (!FileSystem.Mount(volume, fileSystemType, mountPath)) return false;
             }
         }
-        if (!primaryDataDriveMounted) return false;
 
-        // These are physical directories on the mounted writable filesystem. Their logical
-        // meanings and the path separator were configured above before any drive was touched.
+        // Logical folders are created only after the system filesystem and every additional
+        // mountable drive have been attached to the namespace.
         if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.WritableUser))) return false;
         if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.ReadableFonts))) return false;
         if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.Commands))) return false;
