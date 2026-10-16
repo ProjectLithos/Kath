@@ -1364,13 +1364,25 @@ public static unsafe class Kernel
         if (!InputHardwareStartup.Initialize()) return false;
         if (!BootstrapGraphicsTransportStartup.Initialize()) return false;
         if (!DriverInfrastructureStartup.Initialize()) return false;
-        if (!InputHardwareStartup.EnableHardwareInterrupts()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_GRAPHICS_HW")) return false;
+        if (!GraphicsHardwareStartup.Initialize()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_STORAGE")) return false;
         if (!StorageHardwareStartup.Initialize()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_NETWORK")) return false;
+        if (!NetworkingHardwareStartup.Initialize()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_USB")) return false;
+        if (!UsbHardwareStartup.Initialize()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_BINDING")) return false;
         if (!DriverBindingStartup.Initialize()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_FILESYSTEM")) return false;
         if (!FilesystemHardwareStartup.Initialize()) return false;
         if (!KernelStructuredLogging.InfoLine("microkernel", "Kernel.KMain", "Selected microkernel mechanisms are online; drive layout policy is owned by the OS Kernel.cs.")) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_USERLAND")) return false;
         if (!UserlandCommandStartup.Initialize(boot)) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_INTERRUPTS")) return false;
         if (!InterruptRuntimeStartup.Enable()) return false;
+        if (!InputHardwareStartup.EnableHardwareInterrupts()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_SESSION")) return false;
         return global::KathInu.${this.namespace(configuration.name)}.Kernel.Kernel.Start();
     }
 
@@ -1405,15 +1417,27 @@ public static unsafe class Kernel
         if (!ProcessRuntimeStartup.Initialize()) return false;
         if (!TimerDispatchStartup.Initialize()) return false;
         if (!InputHardwareStartup.Initialize()) return false;
+        if (!BootstrapGraphicsTransportStartup.Initialize()) return false;
         if (!DriverInfrastructureStartup.Initialize()) return false;
-        if (!InputHardwareStartup.EnableHardwareInterrupts()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_GRAPHICS_HW")) return false;
         if (!GraphicsHardwareStartup.Initialize()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_STORAGE")) return false;
         if (!StorageHardwareStartup.Initialize()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_NETWORK")) return false;
+        if (!NetworkingHardwareStartup.Initialize()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_USB")) return false;
+        if (!UsbHardwareStartup.Initialize()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_BINDING")) return false;
         if (!DriverBindingStartup.Initialize()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_FILESYSTEM")) return false;
         if (!FilesystemHardwareStartup.Initialize()) return false;
         if (!KernelStructuredLogging.InfoLine("hybrid", "Kernel.KMain", "The OS-selected kernel-resident hardware components are online.")) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_USERLAND")) return false;
         if (!UserlandCommandStartup.Initialize(boot)) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_INTERRUPTS")) return false;
         if (!InterruptRuntimeStartup.Enable()) return false;
+        if (!InputHardwareStartup.EnableHardwareInterrupts()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_SESSION")) return false;
         return global::KathInu.${this.namespace(configuration.name)}.Kernel.Kernel.Start();
     }
 
@@ -1448,17 +1472,27 @@ public static unsafe class Kernel
         if (!ProcessRuntimeStartup.Initialize()) return false;
         if (!TimerDispatchStartup.Initialize()) return false;
         if (!InputHardwareStartup.Initialize()) return false;
+        if (!BootstrapGraphicsTransportStartup.Initialize()) return false;
         if (!DriverInfrastructureStartup.Initialize()) return false;
-        if (!InputHardwareStartup.EnableHardwareInterrupts()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_GRAPHICS_HW")) return false;
         if (!GraphicsHardwareStartup.Initialize()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_STORAGE")) return false;
         if (!StorageHardwareStartup.Initialize()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_NETWORK")) return false;
         if (!NetworkingHardwareStartup.Initialize()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_USB")) return false;
         if (!UsbHardwareStartup.Initialize()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_BINDING")) return false;
         if (!DriverBindingStartup.Initialize()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_FILESYSTEM")) return false;
         if (!FilesystemHardwareStartup.Initialize()) return false;
         if (!KernelStructuredLogging.InfoLine("monolithic", "Kernel.KMain", "The OS-selected kernel-resident components are online.")) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_USERLAND")) return false;
         if (!UserlandCommandStartup.Initialize(boot)) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_INTERRUPTS")) return false;
         if (!InterruptRuntimeStartup.Enable()) return false;
+        if (!InputHardwareStartup.EnableHardwareInterrupts()) return false;
+        if (!KernelConsole.WriteHostControl("BOOT_STAGE_SESSION")) return false;
         return global::KathInu.${this.namespace(configuration.name)}.Kernel.Kernel.Start();
     }
 
