@@ -233,7 +233,7 @@ export class InuWidget extends BaseWidget {
             ['operating-system','Operating system'], ['test-os','Test OS (SDK validation)']
         ], value => { c.projectKind = value as InuProjectKind; if (c.projectKind === 'test-os') this.applyTestOsPreset(c); }));
         purpose.appendChild(this.element('div', 'inu-field-help', c.projectKind === 'test-os'
-            ? 'TEST OS: full host reference + in-kernel managed/BCL/GC/ABI conformance is forced on every Run; selected SDK subsystems are validated before the session starts.'
+            ? 'TEST OS: complete SDK validation profile. Boot, Kernel and Userland expose every currently usable API in their proper execution area; host and in-kernel conformance run before the session starts.'
             : 'Normal OS: SDK conformance remains opt-in and does not add Release boot overhead.'));
         card.appendChild(purpose);
 

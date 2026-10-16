@@ -1795,19 +1795,26 @@ public static unsafe class Kernel
             required.add('Inu.Usb.MassStorage');
         }
         if (configuration.projectKind === 'test-os') {
-            // The Test Kernel must compile every currently exported Boot/Kernel SDK assembly,
-            // not merely whatever happens to be selected by the ordinary OS configurator.
-            // The API contract therefore drives the validation source plan as well as Help.
+            // A Test OS exposes the complete SDK, but each execution area owns its own source plan.
+            // Boot APIs belong to Boot.cs/the boot hand-off and Userland APIs belong to Shell.cs;
+            // neither is a reason to copy a hosted contract/reference assembly into the freestanding
+            // kernel. Only exported Kernel assemblies that are themselves freestanding are eligible
+            // for the kernel dependency plan here.
             try {
                 const contract = JSON.parse(await fs.readFile(path.join(INU_SDK_ROOT, 'Inu.ApiContract.json'), 'utf8')) as { codingApi?: { exports?: Array<{ assembly?: string; category?: string; status?: string }> } };
                 for (const entry of contract.codingApi?.exports ?? []) {
-                    if ((entry.category !== 'Boot' && entry.category !== 'Kernel') || entry.status === 'planned' || !entry.assembly) continue;
-                    try { await fs.access(path.join(sourceRoot, entry.assembly)); required.add(entry.assembly); } catch { }
+                    if (entry.category !== 'Kernel' || entry.status === 'planned' || !entry.assembly) continue;
+                    const projectFile = path.join(sourceRoot, entry.assembly, `${entry.assembly}.csproj`);
+                    try {
+                        const projectText = await fs.readFile(projectFile, 'utf8');
+                        if (/<DisableImplicitFrameworkReferences>\s*true\s*<\/DisableImplicitFrameworkReferences>/.test(projectText)) required.add(entry.assembly);
+                    } catch { }
                 }
             } catch { }
-            // Compile every source-component implementation that the SDK itself marks available.
-            // This makes the Test Kernel future-proof: adding a new available C# SDK component
-            // automatically puts its owning project into the Test Kernel validation build.
+            // Compile every available source-component implementation that is genuinely
+            // freestanding. "available" means the component exists; it does not by itself mean
+            // that its owning project is legal inside a no-stdlib kernel. This check prevents
+            // hosted tooling/reference projects from leaking into a complete Test Kernel.
             try {
                 const definitionsDirectory = path.join(INU_SDK_ROOT, 'components', 'definitions');
                 for (const fileName of await fs.readdir(definitionsDirectory)) {
@@ -1817,6 +1824,9 @@ public static unsafe class Kernel
                         const implementation = definition.implementations?.CSharp;
                         if (implementation?.status === 'available' && implementation.project) {
                             const normalisedProject = implementation.project.replace(/\\/g, '/');
+                            const projectFile = path.join(INU_SDK_ROOT, ...normalisedProject.split('/'));
+                            const projectText = await fs.readFile(projectFile, 'utf8');
+                            if (!/<DisableImplicitFrameworkReferences>\s*true\s*<\/DisableImplicitFrameworkReferences>/.test(projectText)) continue;
                             const parts = normalisedProject.split('/');
                             const srcIndex = parts.indexOf('src');
                             const projectName = srcIndex >= 0 && srcIndex + 1 < parts.length ? parts[srcIndex + 1] : path.basename(path.dirname(normalisedProject));
