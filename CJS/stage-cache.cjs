@@ -33,18 +33,20 @@ function files(paths, outputs = false, report = () => {}) {
 }
 function hashFiles(selected, paths, values = [], report = () => {}) {
     const h = crypto.createHash('sha256'), buffer = Buffer.allocUnsafe(65536);
-    h.update(JSON.stringify(['KathStageCache:1', values, [...paths].sort()]));
+    h.update(JSON.stringify(['KathStageCache:2', values, [...paths].sort()]));
     let bytes = 0, completed = 0;
     for (const file of selected) {
-        h.update(JSON.stringify([file, fs.statSync(file).size]));
+        const size = fs.statSync(file).size;
+        const fileHash = crypto.createHash('sha256');
         const fd = fs.openSync(file, 'r');
         try {
             let count;
             while ((count = fs.readSync(fd, buffer, 0, buffer.length, null))) {
-                h.update(buffer.subarray(0, count)); bytes += count;
-                report(`${completed.toLocaleString()}/${selected.length.toLocaleString()} files checked; ${Math.floor(bytes / 1048576)} MiB read`);
+                fileHash.update(buffer.subarray(0, count)); bytes += count;
+                report(`${completed.toLocaleString()}/${selected.length.toLocaleString()} files hashed; ${Math.floor(bytes / 1048576)} MiB read`);
             }
         } finally { fs.closeSync(fd); }
+        h.update(JSON.stringify([file, size, fileHash.digest('hex')]));
         completed++;
         report(`${completed.toLocaleString()}/${selected.length.toLocaleString()} files checked; ${Math.floor(bytes / 1048576)} MiB read`);
     }
@@ -75,7 +77,7 @@ function stage({ name, cacheRoot, inputs, outputs, args = [], force = false, inp
     const ready = outputs.length && outputs.every(p => fs.existsSync(p) && files([p], true, report).length);
     let cache;
     try { cache = JSON.parse(fs.readFileSync(cacheFile, 'utf8')); } catch {}
-    if (!force && ready && cache?.schema === 1 && cache.inputs === inputHash && cache.outputs === digest()) {
+    if (!force && ready && cache?.schema === 2 && cache.inputs === inputHash && cache.outputs === digest()) {
         console.log(`[ OK ] ${name}: cached; inputs and outputs are current.`); return;
     }
     fs.rmSync(cacheFile, { force: true });
@@ -85,7 +87,7 @@ function stage({ name, cacheRoot, inputs, outputs, args = [], force = false, inp
     if ((inputDigest ? inputDigest(report) : hash(inputs, [name, args], false, report)) !== inputHash) { console.log(`[INFO] ${name}: inputs changed; cache not saved.`); return; }
     fs.mkdirSync(cacheRoot, { recursive: true });
     const temp = cacheFile + '.' + crypto.randomUUID() + '.tmp';
-    try { fs.writeFileSync(temp, JSON.stringify({ schema: 1, inputs: inputHash, outputs: digest() })); fs.renameSync(temp, cacheFile); }
+    try { fs.writeFileSync(temp, JSON.stringify({ schema: 2, inputs: inputHash, outputs: digest() })); fs.renameSync(temp, cacheFile); }
     finally { fs.rmSync(temp, { force: true }); }
     console.log(`[ OK ] ${name}: output verification completed; cache saved.`);
 }
