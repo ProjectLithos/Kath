@@ -450,11 +450,18 @@ export abstract class InuProjectGenerationSupport {
 
         const selectedKinds = controllers.map(controller => controller === 'nvme' ? 'KernelStorageDeviceKind.Nvme' : 'KernelStorageDeviceKind.Ahci');
         const provisionExpression = selectedKinds.length === 0 ? 'false' : selectedKinds.map(kind => `driveKind == ${kind}`).join(' || ');
-        return `        // The bootable block drive is the system drive. All other detected drives remain
+        return `        if (!KernelConsole.WriteHostControl("OS_POLICY_STORAGE_ENTER")) return false;
+        // The bootable block drive is the system drive. All other detected drives remain
         // additional mounted volumes and can never replace the system root implicitly.
-        if (!Storage.TryGetSystemDrive(out KernelStorageDeviceHandle systemDrive)) return false;
+        if (!Storage.TryGetSystemDrive(out KernelStorageDeviceHandle systemDrive))
+        {
+            KernelConsole.WriteHostControl("OS_POLICY_SYSTEM_DRIVE_FAIL");
+            return false;
+        }
+        if (!KernelConsole.WriteHostControl("OS_POLICY_SYSTEM_DRIVE_OK")) return false;
 
         // Mount the filesystem that contains the booted system image as the system root.
+        if (!KernelConsole.WriteHostControl("OS_POLICY_SYSTEM_VOLUME_SCAN_ENTER")) return false;
         Boolean systemMounted = false;
         KernelStorageVolumeHandle systemRootVolume = default;
         UInt32 detectedVolumeCount = Storage.GetVolumeCount();
@@ -463,16 +470,33 @@ export abstract class InuProjectGenerationSupport {
             if (!Storage.TryGetVolume(volumeOrdinal, out KernelStorageVolumeHandle volume, out KernelStorageDeviceHandle owner, out KernelPartitionInfo partition)) continue;
             if (owner.Value != systemDrive.Value) continue;
             if (!FatFs.TryGetFileSystemType(volume, out KernelFileSystemType fileSystemType)) continue;
-            if (!FileSystem.Mount(volume, fileSystemType, "/")) return false;
+            if (!KernelConsole.WriteHostControl("OS_POLICY_SYSTEM_FS_FOUND")) return false;
+            if (!KernelConsole.WriteHostControl("OS_POLICY_SYSTEM_MOUNT_ENTER")) return false;
+            if (!FileSystem.Mount(volume, fileSystemType, "/"))
+            {
+                KernelConsole.WriteHostControl("OS_POLICY_SYSTEM_MOUNT_FAIL");
+                return false;
+            }
+            if (!KernelConsole.WriteHostControl("OS_POLICY_SYSTEM_MOUNT_OK")) return false;
             systemRootVolume = volume;
             systemMounted = true;
             break;
         }
-        if (!systemMounted) return false;
+        if (!systemMounted)
+        {
+            KernelConsole.WriteHostControl("OS_POLICY_SYSTEM_VOLUME_NOT_MOUNTABLE");
+            return false;
+        }
 
         // The system drive owns the root namespace. Every additional mountable drive/partition
         // is exposed beneath /Drives and does not become a second system drive.
-        if (!FileSystem.EnsureDirectory("/Drives")) return false;
+        if (!KernelConsole.WriteHostControl("OS_POLICY_DRIVES_DIRECTORY_ENTER")) return false;
+        if (!FileSystem.EnsureDirectory("/Drives"))
+        {
+            KernelConsole.WriteHostControl("OS_POLICY_DRIVES_DIRECTORY_FAIL");
+            return false;
+        }
+        if (!KernelConsole.WriteHostControl("OS_POLICY_DRIVES_DIRECTORY_OK")) return false;
 
         UInt32 detectedDriveCount = Storage.GetDriveCount();
         for (UInt32 driveOrdinal = 0U; driveOrdinal < detectedDriveCount; driveOrdinal++)
@@ -488,13 +512,25 @@ export abstract class InuProjectGenerationSupport {
                 if (!Storage.EnsureGptPartitions(drive, 2U, out createdLayout)) continue;
                 if (createdLayout)
                 {
-                    if (Storage.TryGetPartition(drive, 1U, out KernelStorageVolumeHandle newPartition1) && !FatFs.EnsureFat32(newPartition1)) return false;
-                    if (Storage.TryGetPartition(drive, 2U, out KernelStorageVolumeHandle newPartition2) && !FatFs.EnsureFat32(newPartition2)) return false;
+                    if (Storage.TryGetPartition(drive, 1U, out KernelStorageVolumeHandle newPartition1) && !FatFs.EnsureFat32(newPartition1))
+                    {
+                        KernelConsole.WriteHostControl("OS_POLICY_DATA_PARTITION1_FORMAT_FAIL");
+                        return false;
+                    }
+                    if (Storage.TryGetPartition(drive, 2U, out KernelStorageVolumeHandle newPartition2) && !FatFs.EnsureFat32(newPartition2))
+                    {
+                        KernelConsole.WriteHostControl("OS_POLICY_DATA_PARTITION2_FORMAT_FAIL");
+                        return false;
+                    }
                 }
             }
 
             String drivePath = "/Drives/Drive" + driveOrdinal.ToString();
-            if (!FileSystem.EnsureDirectory(drivePath)) return false;
+            if (!FileSystem.EnsureDirectory(drivePath))
+            {
+                KernelConsole.WriteHostControl("OS_POLICY_DRIVE_DIRECTORY_FAIL");
+                return false;
+            }
 
             // Mount every recognized filesystem volume belonging to this drive. The system root
             // volume is already mounted at /, so it is not mounted a second time.
@@ -506,18 +542,24 @@ export abstract class InuProjectGenerationSupport {
                 if (systemMounted && volume.Value == systemRootVolume.Value) continue;
                 if (!FatFs.TryGetFileSystemType(volume, out KernelFileSystemType fileSystemType)) continue;
                 String mountPath = drivePath + "/Partition" + (partition.Index + 1U).ToString();
-                if (!FileSystem.Mount(volume, fileSystemType, mountPath)) return false;
+                if (!FileSystem.Mount(volume, fileSystemType, mountPath))
+                {
+                    KernelConsole.WriteHostControl("OS_POLICY_DATA_MOUNT_FAIL");
+                    return false;
+                }
             }
         }
 
         // Logical folders are created only after the system filesystem and every additional
         // mountable drive have been attached to the namespace.
-        if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.WritableUser))) return false;
-        if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.ReadableFonts))) return false;
-        if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.Commands))) return false;
-        if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.Applications))) return false;
-        if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.Libraries))) return false;
-        if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.Temporary))) return false;
+        if (!KernelConsole.WriteHostControl("OS_POLICY_LOGICAL_DIRECTORIES_ENTER")) return false;
+        if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.WritableUser))) { KernelConsole.WriteHostControl("OS_POLICY_WRITABLE_USER_DIRECTORY_FAIL"); return false; }
+        if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.ReadableFonts))) { KernelConsole.WriteHostControl("OS_POLICY_FONTS_DIRECTORY_FAIL"); return false; }
+        if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.Commands))) { KernelConsole.WriteHostControl("OS_POLICY_COMMANDS_DIRECTORY_FAIL"); return false; }
+        if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.Applications))) { KernelConsole.WriteHostControl("OS_POLICY_APPLICATIONS_DIRECTORY_FAIL"); return false; }
+        if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.Libraries))) { KernelConsole.WriteHostControl("OS_POLICY_LIBRARIES_DIRECTORY_FAIL"); return false; }
+        if (!FileSystem.EnsureDirectory(FileSystem.GetLogicalPath(FileSystemLogicalPath.Temporary))) { KernelConsole.WriteHostControl("OS_POLICY_TEMP_DIRECTORY_FAIL"); return false; }
+        if (!KernelConsole.WriteHostControl("OS_POLICY_LOGICAL_DIRECTORIES_OK")) return false;
 `;
     }
 
@@ -612,23 +654,27 @@ public static class Boot
         const kernelStartup = configuration.startupModel === 'gui'
             ? `        global::${ns}.Userland.Gui.Configure();\n        return DesktopSession.Run();`
             : configuration.startupModel === 'cli' || configuration.startupModel === 'cli-gui'
-                ? `        return TextSession.Run();`
+                ? `        if (!KernelConsole.WriteHostControl("OS_POLICY_TEXT_SESSION_ENTER")) return false;\n        Boolean textSessionResult = TextSession.Run();\n        KernelConsole.WriteHostControl(textSessionResult ? "OS_POLICY_TEXT_SESSION_RETURNED_TRUE" : "OS_POLICY_TEXT_SESSION_RETURNED_FALSE");\n        return textSessionResult;`
                 : '        return true;';
         const filesystemPolicy = configuration.filesystem !== 'none'
             ? `        // Path/folder policy is established before any disk is partitioned, formatted or mounted.
         // The coder owns these values and may change the separator and logical paths directly.
-        if (!FileSystem.SetPathPolicy(new FileSystemPathPolicy('/', false, 20, false, true, "*?<>|"))) return false;
-        if (!FileSystem.SetPathSeparator('/')) return false;
-        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.ReadableUser, "/User")) return false;
-        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.WritableUser, "/User")) return false;
-        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.VisibleUser, "/User/{user}")) return false;
-        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.ReadableFonts, "/System/Fonts")) return false;
-        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.WritableFonts, "/System/Fonts")) return false;
-        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.VisibleFonts, "/System/Fonts")) return false;
-        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.Commands, "/System/Commands")) return false;
-        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.Applications, "/System/Applications")) return false;
-        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.Libraries, "/System/Libraries")) return false;
-        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.Temporary, "/Temp")) return false;`
+        if (!KernelConsole.WriteHostControl("OS_POLICY_PATH_POLICY_ENTER")) return false;
+        if (!FileSystem.SetPathPolicy(new FileSystemPathPolicy('/', false, 20, false, true, "*?<>|"))) { KernelConsole.WriteHostControl("OS_POLICY_PATH_POLICY_FAIL"); return false; }
+        if (!FileSystem.SetPathSeparator('/')) { KernelConsole.WriteHostControl("OS_POLICY_PATH_SEPARATOR_FAIL"); return false; }
+        if (!KernelConsole.WriteHostControl("OS_POLICY_PATH_POLICY_OK")) return false;
+        if (!KernelConsole.WriteHostControl("OS_POLICY_LOGICAL_PATHS_ENTER")) return false;
+        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.ReadableUser, "/User")) { KernelConsole.WriteHostControl("OS_POLICY_READABLE_USER_PATH_FAIL"); return false; }
+        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.WritableUser, "/User")) { KernelConsole.WriteHostControl("OS_POLICY_WRITABLE_USER_PATH_FAIL"); return false; }
+        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.VisibleUser, "/User/{user}")) { KernelConsole.WriteHostControl("OS_POLICY_VISIBLE_USER_PATH_FAIL"); return false; }
+        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.ReadableFonts, "/System/Fonts")) { KernelConsole.WriteHostControl("OS_POLICY_READABLE_FONTS_PATH_FAIL"); return false; }
+        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.WritableFonts, "/System/Fonts")) { KernelConsole.WriteHostControl("OS_POLICY_WRITABLE_FONTS_PATH_FAIL"); return false; }
+        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.VisibleFonts, "/System/Fonts")) { KernelConsole.WriteHostControl("OS_POLICY_VISIBLE_FONTS_PATH_FAIL"); return false; }
+        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.Commands, "/System/Commands")) { KernelConsole.WriteHostControl("OS_POLICY_COMMANDS_PATH_FAIL"); return false; }
+        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.Applications, "/System/Applications")) { KernelConsole.WriteHostControl("OS_POLICY_APPLICATIONS_PATH_FAIL"); return false; }
+        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.Libraries, "/System/Libraries")) { KernelConsole.WriteHostControl("OS_POLICY_LIBRARIES_PATH_FAIL"); return false; }
+        if (!FileSystem.SetLogicalPath(FileSystemLogicalPath.Temporary, "/Temp")) { KernelConsole.WriteHostControl("OS_POLICY_TEMP_PATH_FAIL"); return false; }
+        if (!KernelConsole.WriteHostControl("OS_POLICY_LOGICAL_PATHS_OK")) return false;`
             : '';
         const generalPolicy = configuration.projectKind === 'test-os'
             ? `        Scheduler.SetQuantumMilliseconds(5);
