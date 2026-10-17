@@ -30,6 +30,9 @@ type Option = readonly [value: string, label: string];
 export class InuWidget extends BaseWidget {
     static readonly ID = INU_WIDGET_ID;
     static readonly LABEL = 'Kath&Inu';
+    // Normal New OS defaults intentionally exclude legacy PS/2 and all networking.
+    // Those facilities remain available as explicit opt-in hardware choices.
+    static readonly DEFAULT_NEW_OS_HARDWARE = ['pci', 'acpi', 'serial-16550', 'nvme', 'ahci', 'usb-xhci', 'usb-hid-keyboard', 'usb-hid-mouse', 'uefi-gop'] as const;
 
     @inject(InuProjectService) protected readonly projectService!: InuProjectService;
     @inject(MessageService) protected readonly messages!: MessageService;
@@ -82,7 +85,7 @@ export class InuWidget extends BaseWidget {
             bootArchitecture: 'uefi',
             executableFormats: ['elf64', 'pe64'],
             startupModel: 'cli',
-            hardwareSupport: ['pci', 'acpi', 'serial-16550', 'nvme', 'ahci', 'usb-xhci', 'usb-hid-keyboard', 'usb-hid-mouse', 'uefi-gop'],
+            hardwareSupport: [...InuWidget.DEFAULT_NEW_OS_HARDWARE],
             customExecutionPlacements: {},
 
             // Transitional implementation settings. Kath derives these from the
