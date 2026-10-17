@@ -1336,6 +1336,7 @@ ${roleSetup}
     }
 
     protected microkernelKernelSource(configuration: InuProjectConfiguration): string {
+        const areas = this.sdkKernelAreas(configuration);
         return `using System;
 using Inu.Kernel.Bootstrap.Boot;
 using Inu.Kernel.Bootstrap.Startup;
@@ -1368,10 +1369,11 @@ public static unsafe class Kernel
         if (!GraphicsHardwareStartup.Initialize()) return false;
         if (!KernelConsole.WriteHostControl("BOOT_STAGE_STORAGE")) return false;
         if (!StorageHardwareStartup.Initialize()) return false;
-        if (!KernelConsole.WriteHostControl("BOOT_STAGE_NETWORK")) return false;
+${areas.Networking ? `        if (!KernelConsole.WriteHostControl("BOOT_STAGE_NETWORK")) return false;
         if (!NetworkingHardwareStartup.Initialize()) return false;
-        if (!KernelConsole.WriteHostControl("BOOT_STAGE_USB")) return false;
+` : ''}${areas.USB ? `        if (!KernelConsole.WriteHostControl("BOOT_STAGE_USB")) return false;
         if (!UsbHardwareStartup.Initialize()) return false;
+` : ''}
         if (!KernelConsole.WriteHostControl("BOOT_STAGE_BINDING")) return false;
         if (!DriverBindingStartup.Initialize()) return false;
         if (!KernelConsole.WriteHostControl("BOOT_STAGE_FILESYSTEM")) return false;
@@ -1383,7 +1385,10 @@ public static unsafe class Kernel
         if (!InterruptRuntimeStartup.Enable()) return false;
         if (!InputHardwareStartup.EnableHardwareInterrupts()) return false;
         if (!KernelConsole.WriteHostControl("BOOT_STAGE_SESSION")) return false;
-        return global::KathInu.${this.namespace(configuration.name)}.Kernel.Kernel.Start();
+        if (!KernelConsole.WriteHostControl("OS_POLICY_ENTER")) return false;
+        Boolean policyResult = global::KathInu.${this.namespace(configuration.name)}.Kernel.Kernel.Start();
+        KernelConsole.WriteHostControl(policyResult ? "OS_POLICY_RETURNED_TRUE" : "OS_POLICY_RETURNED_FALSE");
+        return policyResult;
     }
 
 }
@@ -1545,7 +1550,7 @@ public static unsafe class Kernel
             // mechanism remains kernel-resident for every model. This keeps a Microkernel usable without
             // turning filesystem policy or applications into kernel code.
             Storage: testOs || (configuration.storageControllers.length > 0 && (monolithic || hybrid || model === 'Microkernel' || (custom && configuration.storageControllers.some(value => this.customExecutionArea(configuration, `hardware:${value}`) === 'kernel')))),
-            Networking: testOs || ((monolithic || (custom && this.customExecutionArea(configuration, 'service:networking') === 'kernel')) && configuration.networkStack !== 'none'),
+            Networking: configuration.networkStack !== 'none' && (testOs || monolithic || (custom && this.customExecutionArea(configuration, 'service:networking') === 'kernel')),
             // Inu's currently implemented PS/2 and USB HID providers are kernel mechanisms.
             // When the OS author selects them, materialize those mechanisms even for a microkernel
             // GUI so the ring-3 desktop/login can receive real input events. Kath may move a future
