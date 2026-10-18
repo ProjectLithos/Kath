@@ -2161,6 +2161,34 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
         }
         if (!session.complete && session.mode !== 'debug' && session.qemuPid && !this.isProcessAliveByPid(session.qemuPid)) {
             session.output += '\r\n[INFO] QEMU process exited.\r\n';
+            // Runtime acceptance returns as soon as the shell is interactive. Keyboard/HID
+            // faults therefore happen after the build has already succeeded. Surface the
+            // final serial/debugcon tails here so the ordinary Kath Run output captures them.
+            if (session.serialLogPath) {
+                try {
+                    const finalSerial = await fs.readFile(session.serialLogPath, 'utf8');
+                    const serialTail = finalSerial.slice(Math.max(0, finalSerial.length - 12000)).replace(/\r/g, '');
+                    if (serialTail.trim().length > 0) {
+                        session.output += '[INFO] Final guest serial tail after interactive session:\r\n';
+                        session.output += serialTail.replace(/\n/g, '\r\n');
+                        if (!session.output.endsWith('\r\n')) session.output += '\r\n';
+                    }
+                } catch (error) {
+                    session.output += `[WARN] Could not read final guest serial diagnostics: ${error instanceof Error ? error.message : String(error)}\r\n`;
+                }
+                try {
+                    const debugconPath = path.join(path.dirname(session.serialLogPath), 'qemu-debugcon.log');
+                    const debugcon = await fs.readFile(debugconPath);
+                    const tail = debugcon.subarray(Math.max(0, debugcon.length - 2048));
+                    if (tail.length > 0) {
+                        const hex = Array.from(tail, value => value.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+                        session.output += `[INFO] Final QEMU isa-debugcon 0xE9 tail (${tail.length} byte(s)):\r\n${hex}\r\n`;
+                        session.output += '[INFO] Interactive input legend: Z slot dci interval maxPacket=xHCI periodic endpoint; Q/q=input queue/wake; W/w=input worker; H/h=HID service; U=HID pass; D=device transfer; Y=xHCI transfer; B=doorbell; J/j=xHCI IRQ/event; R=transfer completion; G=decoded key; I=byte queued; N=waiter wake; L=console waiter; O=byte read; A/a=editable render.\r\n';
+                    }
+                } catch (error) {
+                    session.output += `[WARN] Could not read final QEMU debugcon diagnostics: ${error instanceof Error ? error.message : String(error)}\r\n`;
+                }
+            }
             session.exitCode = 0;
             session.complete = true;
         }
