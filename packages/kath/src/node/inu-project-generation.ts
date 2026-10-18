@@ -1440,6 +1440,13 @@ ${areas.Networking ? `        if (!KernelConsole.WriteHostControl("BOOT_STAGE_NE
         if (!KernelConsole.WriteHostControl("INPUT_IRQ_ENABLE_ENTER")) return false;
         if (!InputHardwareStartup.EnableHardwareInterrupts()) { KernelConsole.WriteHostControl("INPUT_IRQ_ENABLE_FAIL"); return false; }
         if (!KernelConsole.WriteHostControl("INPUT_IRQ_ENABLE_OK")) return false;
+        if (!KernelConsole.WriteHostControl("TIMER_IRQ_ENABLE_ENTER")) return false;
+        if (!TimerDispatchStartup.EnableHardwareInterrupts())
+        {
+            KernelConsole.WriteHostControl("TIMER_IRQ_ENABLE_FAIL");
+            return false;
+        }
+        if (!KernelConsole.WriteHostControl("TIMER_IRQ_ENABLE_OK")) return false;
         if (!KernelConsole.WriteHostControl("BOOT_STAGE_SESSION")) return false;
         if (!KernelConsole.WriteHostControl("OS_POLICY_ENTER")) return false;
         Boolean policyResult = global::KathInu.${this.namespace(configuration.name)}.Kernel.Kernel.Start();
@@ -1508,6 +1515,13 @@ public static unsafe class Kernel
         if (!KernelConsole.WriteHostControl("INPUT_IRQ_ENABLE_ENTER")) return false;
         if (!InputHardwareStartup.EnableHardwareInterrupts()) { KernelConsole.WriteHostControl("INPUT_IRQ_ENABLE_FAIL"); return false; }
         if (!KernelConsole.WriteHostControl("INPUT_IRQ_ENABLE_OK")) return false;
+        if (!KernelConsole.WriteHostControl("TIMER_IRQ_ENABLE_ENTER")) return false;
+        if (!TimerDispatchStartup.EnableHardwareInterrupts())
+        {
+            KernelConsole.WriteHostControl("TIMER_IRQ_ENABLE_FAIL");
+            return false;
+        }
+        if (!KernelConsole.WriteHostControl("TIMER_IRQ_ENABLE_OK")) return false;
         if (!KernelConsole.WriteHostControl("BOOT_STAGE_SESSION")) return false;
         return global::KathInu.${this.namespace(configuration.name)}.Kernel.Kernel.Start();
     }
@@ -1573,6 +1587,13 @@ public static unsafe class Kernel
         if (!KernelConsole.WriteHostControl("INPUT_IRQ_ENABLE_ENTER")) return false;
         if (!InputHardwareStartup.EnableHardwareInterrupts()) { KernelConsole.WriteHostControl("INPUT_IRQ_ENABLE_FAIL"); return false; }
         if (!KernelConsole.WriteHostControl("INPUT_IRQ_ENABLE_OK")) return false;
+        if (!KernelConsole.WriteHostControl("TIMER_IRQ_ENABLE_ENTER")) return false;
+        if (!TimerDispatchStartup.EnableHardwareInterrupts())
+        {
+            KernelConsole.WriteHostControl("TIMER_IRQ_ENABLE_FAIL");
+            return false;
+        }
+        if (!KernelConsole.WriteHostControl("TIMER_IRQ_ENABLE_OK")) return false;
         if (!KernelConsole.WriteHostControl("BOOT_STAGE_SESSION")) return false;
         return global::KathInu.${this.namespace(configuration.name)}.Kernel.Kernel.Start();
     }
