@@ -1447,7 +1447,13 @@ ${areas.Networking ? `        if (!KernelConsole.WriteHostControl("BOOT_STAGE_NE
             return false;
         }
         if (!KernelConsole.WriteHostControl("TIMER_IRQ_ENABLE_OK")) return false;
+        Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, (Byte)'S'); Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, 0x40);
+        if (!KernelConsole.WriteHostControl("SESSION_HANDOFF_ENTER")) return false;
+        Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, (Byte)'S'); Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, 0x41);
         if (!KernelConsole.WriteHostControl("BOOT_STAGE_SESSION")) return false;
+        Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, (Byte)'S'); Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, 0x42);
+        if (!KernelConsole.WriteHostControl("SESSION_HANDOFF_OK")) return false;
+        Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, (Byte)'S'); Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, 0x43);
         if (!KernelConsole.WriteHostControl("OS_POLICY_ENTER")) return false;
         Boolean policyResult = global::KathInu.${this.namespace(configuration.name)}.Kernel.Kernel.Start();
         KernelConsole.WriteHostControl(policyResult ? "OS_POLICY_RETURNED_TRUE" : "OS_POLICY_RETURNED_FALSE");
@@ -1522,7 +1528,13 @@ public static unsafe class Kernel
             return false;
         }
         if (!KernelConsole.WriteHostControl("TIMER_IRQ_ENABLE_OK")) return false;
+        Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, (Byte)'S'); Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, 0x40);
+        if (!KernelConsole.WriteHostControl("SESSION_HANDOFF_ENTER")) return false;
+        Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, (Byte)'S'); Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, 0x41);
         if (!KernelConsole.WriteHostControl("BOOT_STAGE_SESSION")) return false;
+        Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, (Byte)'S'); Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, 0x42);
+        if (!KernelConsole.WriteHostControl("SESSION_HANDOFF_OK")) return false;
+        Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, (Byte)'S'); Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, 0x43);
         return global::KathInu.${this.namespace(configuration.name)}.Kernel.Kernel.Start();
     }
 
@@ -1594,7 +1606,13 @@ public static unsafe class Kernel
             return false;
         }
         if (!KernelConsole.WriteHostControl("TIMER_IRQ_ENABLE_OK")) return false;
+        Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, (Byte)'S'); Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, 0x40);
+        if (!KernelConsole.WriteHostControl("SESSION_HANDOFF_ENTER")) return false;
+        Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, (Byte)'S'); Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, 0x41);
         if (!KernelConsole.WriteHostControl("BOOT_STAGE_SESSION")) return false;
+        Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, (Byte)'S'); Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, 0x42);
+        if (!KernelConsole.WriteHostControl("SESSION_HANDOFF_OK")) return false;
+        Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, (Byte)'S'); Inu.Kernel.Internal.X64.Native.WritePort8(0xE9, 0x43);
         return global::KathInu.${this.namespace(configuration.name)}.Kernel.Kernel.Start();
     }
 
