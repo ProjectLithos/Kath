@@ -77,7 +77,7 @@ function Stop-ProcessTree([System.Diagnostics.Process]$Process){
     } catch {}
     try { [void]$Process.WaitForExit(5000) } catch {}
 }
-function Invoke-GitLiveResult([string[]]$a, [int]$TimeoutSeconds=90){
+function Invoke-GitLiveResult([string[]]$a){
     $psi=New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName=$script:GitExe
     $psi.WorkingDirectory=$SourceRoot
@@ -94,10 +94,9 @@ function Invoke-GitLiveResult([string[]]$a, [int]$TimeoutSeconds=90){
         if(-not $process.Start()){
             return [pscustomobject]@{ ExitCode=-1; TimedOut=$false }
         }
-        if(-not $process.WaitForExit($TimeoutSeconds * 1000)){
-            Stop-ProcessTree $process
-            return [pscustomobject]@{ ExitCode=124; TimedOut=$true }
-        }
+        # Do not kill a healthy large push on an arbitrary wall-clock deadline. Git's
+        # HTTPS low-speed guard below detects a genuinely stalled transport instead.
+        $process.WaitForExit()
         return [pscustomobject]@{ ExitCode=[int]$process.ExitCode; TimedOut=$false }
     } finally { $process.Dispose() }
 }
@@ -187,15 +186,13 @@ if($hasChanges -or -not $hasHead){
 
 # Never force-push.  If someone has changed the remote independently, stop and
 # report it rather than destroying that history.
-Write-Host "[INFO] Pushing $RepositoryName to GitHub (maximum 90 seconds)..."
-# Push uses inherited console handles instead of redirected async pipes. If a
-# credential/helper child survives the parent git.exe, redirected ReadToEndAsync
-# can otherwise keep the publisher blocked forever even after the timeout fires.
-$push=Invoke-GitLiveResult -a @('push','-u','origin','HEAD:main') -TimeoutSeconds 90
+Write-Host "[INFO] Pushing $RepositoryName to GitHub (no fixed wall-clock timeout; 5-minute zero-progress transport guard)..."
+# Inu can legitimately need several minutes to pack and upload a large first/backlog push.
+# Do not terminate it merely because compression exceeds 90 seconds. The git http
+# low-speed guard still fails a genuinely stalled HTTPS transfer after five minutes
+# below one byte/second, while authentication remains explicitly non-interactive.
+$push=Invoke-GitLiveResult -a @('-c','http.lowSpeedLimit=1','-c','http.lowSpeedTime=300','push','-u','origin','HEAD:main')
 if($push.ExitCode -ne 0){
-    if($push.TimedOut){
-        Fail "The build succeeded, but $RepositoryName push exceeded 90 seconds and the Git process tree was terminated. Check GitHub authentication or connectivity."
-    }
     Fail "The build succeeded, but $RepositoryName could not be pushed to $RepositoryUrl (exit $($push.ExitCode)). Check GitHub authentication, connectivity, or remote history."
 }
 Write-Host "[ OK ] $RepositoryName $Version published to GitHub."
