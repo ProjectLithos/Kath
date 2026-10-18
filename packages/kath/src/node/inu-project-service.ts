@@ -2183,7 +2183,7 @@ export class InuProjectServiceImpl extends InuRuntimeDebugSupport implements Inu
                     if (tail.length > 0) {
                         const hex = Array.from(tail, value => value.toString(16).padStart(2, '0').toUpperCase()).join(' ');
                         session.output += `[INFO] Final QEMU isa-debugcon 0xE9 tail (${tail.length} byte(s)):\r\n${hex}\r\n`;
-                        session.output += '[INFO] Interactive input legend: Z slot dci interval maxPacket=xHCI periodic endpoint; Q/q=input queue/wake; W/w=input worker; H/h=HID service; U=HID pass; D=device transfer; Y=xHCI transfer; B=doorbell; J/j=xHCI IRQ/event; R=transfer completion; G=decoded key; I=byte queued; N=waiter wake; L=console waiter; O=byte read; A/a=editable render.\r\n';
+                        session.output += '[INFO] Interactive input legend: Z slot dci interval maxPacket=xHCI periodic endpoint; X stage cmd sts iman eventIndex cycle=xHCI interrupt-state snapshot; T stage slot dci sts iman eventIndex cycle=xHCI transfer snapshot; E type completion slot dci residual=xHCI event TRB; V check sts iman eventIndex cycle + v/-=interrupt-loss watchdog recovery/no-event; Q/q=input queue/wake; W/w=input worker; H/h=HID service; U=HID pass; D=device transfer; Y=xHCI transfer; B=doorbell; J irq sts iman eventIndex cycle + j/s/0=xHCI IRQ state; R=transfer completion; G=decoded key; I=byte queued; N=waiter wake; L=console waiter; O=byte read; A/a=editable render.\r\n';
                     }
                 } catch (error) {
                     session.output += `[WARN] Could not read final QEMU debugcon diagnostics: ${error instanceof Error ? error.message : String(error)}\r\n`;
