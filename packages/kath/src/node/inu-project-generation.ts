@@ -1427,9 +1427,19 @@ ${areas.Networking ? `        if (!KernelConsole.WriteHostControl("BOOT_STAGE_NE
         if (!KernelStructuredLogging.InfoLine("microkernel", "Kernel.KMain", "Selected microkernel mechanisms are online; drive layout policy is owned by the OS Kernel.cs.")) return false;
         if (!KernelConsole.WriteHostControl("BOOT_STAGE_USERLAND")) return false;
         if (!UserlandCommandStartup.Initialize(boot)) return false;
+        if (!KernelConsole.WriteHostControl("USB_IRQ_PREPARE_ENTER")) return false;
+        if (!UsbHardwareStartup.PrepareHardwareInterrupts()) { KernelConsole.WriteHostControl("USB_IRQ_PREPARE_FAIL"); return false; }
+        if (!KernelConsole.WriteHostControl("USB_IRQ_PREPARE_OK")) return false;
         if (!KernelConsole.WriteHostControl("BOOT_STAGE_INTERRUPTS")) return false;
-        if (!InterruptRuntimeStartup.Enable()) return false;
-        if (!InputHardwareStartup.EnableHardwareInterrupts()) return false;
+        if (!KernelConsole.WriteHostControl("INTERRUPTS_ENABLE_ENTER")) return false;
+        if (!InterruptRuntimeStartup.Enable()) { KernelConsole.WriteHostControl("INTERRUPTS_ENABLE_FAIL"); return false; }
+        if (!KernelConsole.WriteHostControl("INTERRUPTS_ENABLE_OK")) return false;
+        if (!KernelConsole.WriteHostControl("USB_IRQ_ACTIVATE_ENTER")) return false;
+        if (!UsbHardwareStartup.EnableHardwareInterrupts()) { KernelConsole.WriteHostControl("USB_IRQ_ACTIVATE_FAIL"); return false; }
+        if (!KernelConsole.WriteHostControl("USB_IRQ_ACTIVATE_OK")) return false;
+        if (!KernelConsole.WriteHostControl("INPUT_IRQ_ENABLE_ENTER")) return false;
+        if (!InputHardwareStartup.EnableHardwareInterrupts()) { KernelConsole.WriteHostControl("INPUT_IRQ_ENABLE_FAIL"); return false; }
+        if (!KernelConsole.WriteHostControl("INPUT_IRQ_ENABLE_OK")) return false;
         if (!KernelConsole.WriteHostControl("BOOT_STAGE_SESSION")) return false;
         if (!KernelConsole.WriteHostControl("OS_POLICY_ENTER")) return false;
         Boolean policyResult = global::KathInu.${this.namespace(configuration.name)}.Kernel.Kernel.Start();
@@ -1485,9 +1495,19 @@ public static unsafe class Kernel
         if (!KernelStructuredLogging.InfoLine("hybrid", "Kernel.KMain", "The OS-selected kernel-resident hardware components are online.")) return false;
         if (!KernelConsole.WriteHostControl("BOOT_STAGE_USERLAND")) return false;
         if (!UserlandCommandStartup.Initialize(boot)) return false;
+        if (!KernelConsole.WriteHostControl("USB_IRQ_PREPARE_ENTER")) return false;
+        if (!UsbHardwareStartup.PrepareHardwareInterrupts()) { KernelConsole.WriteHostControl("USB_IRQ_PREPARE_FAIL"); return false; }
+        if (!KernelConsole.WriteHostControl("USB_IRQ_PREPARE_OK")) return false;
         if (!KernelConsole.WriteHostControl("BOOT_STAGE_INTERRUPTS")) return false;
-        if (!InterruptRuntimeStartup.Enable()) return false;
-        if (!InputHardwareStartup.EnableHardwareInterrupts()) return false;
+        if (!KernelConsole.WriteHostControl("INTERRUPTS_ENABLE_ENTER")) return false;
+        if (!InterruptRuntimeStartup.Enable()) { KernelConsole.WriteHostControl("INTERRUPTS_ENABLE_FAIL"); return false; }
+        if (!KernelConsole.WriteHostControl("INTERRUPTS_ENABLE_OK")) return false;
+        if (!KernelConsole.WriteHostControl("USB_IRQ_ACTIVATE_ENTER")) return false;
+        if (!UsbHardwareStartup.EnableHardwareInterrupts()) { KernelConsole.WriteHostControl("USB_IRQ_ACTIVATE_FAIL"); return false; }
+        if (!KernelConsole.WriteHostControl("USB_IRQ_ACTIVATE_OK")) return false;
+        if (!KernelConsole.WriteHostControl("INPUT_IRQ_ENABLE_ENTER")) return false;
+        if (!InputHardwareStartup.EnableHardwareInterrupts()) { KernelConsole.WriteHostControl("INPUT_IRQ_ENABLE_FAIL"); return false; }
+        if (!KernelConsole.WriteHostControl("INPUT_IRQ_ENABLE_OK")) return false;
         if (!KernelConsole.WriteHostControl("BOOT_STAGE_SESSION")) return false;
         return global::KathInu.${this.namespace(configuration.name)}.Kernel.Kernel.Start();
     }
@@ -1540,9 +1560,19 @@ public static unsafe class Kernel
         if (!KernelStructuredLogging.InfoLine("monolithic", "Kernel.KMain", "The OS-selected kernel-resident components are online.")) return false;
         if (!KernelConsole.WriteHostControl("BOOT_STAGE_USERLAND")) return false;
         if (!UserlandCommandStartup.Initialize(boot)) return false;
+        if (!KernelConsole.WriteHostControl("USB_IRQ_PREPARE_ENTER")) return false;
+        if (!UsbHardwareStartup.PrepareHardwareInterrupts()) { KernelConsole.WriteHostControl("USB_IRQ_PREPARE_FAIL"); return false; }
+        if (!KernelConsole.WriteHostControl("USB_IRQ_PREPARE_OK")) return false;
         if (!KernelConsole.WriteHostControl("BOOT_STAGE_INTERRUPTS")) return false;
-        if (!InterruptRuntimeStartup.Enable()) return false;
-        if (!InputHardwareStartup.EnableHardwareInterrupts()) return false;
+        if (!KernelConsole.WriteHostControl("INTERRUPTS_ENABLE_ENTER")) return false;
+        if (!InterruptRuntimeStartup.Enable()) { KernelConsole.WriteHostControl("INTERRUPTS_ENABLE_FAIL"); return false; }
+        if (!KernelConsole.WriteHostControl("INTERRUPTS_ENABLE_OK")) return false;
+        if (!KernelConsole.WriteHostControl("USB_IRQ_ACTIVATE_ENTER")) return false;
+        if (!UsbHardwareStartup.EnableHardwareInterrupts()) { KernelConsole.WriteHostControl("USB_IRQ_ACTIVATE_FAIL"); return false; }
+        if (!KernelConsole.WriteHostControl("USB_IRQ_ACTIVATE_OK")) return false;
+        if (!KernelConsole.WriteHostControl("INPUT_IRQ_ENABLE_ENTER")) return false;
+        if (!InputHardwareStartup.EnableHardwareInterrupts()) { KernelConsole.WriteHostControl("INPUT_IRQ_ENABLE_FAIL"); return false; }
+        if (!KernelConsole.WriteHostControl("INPUT_IRQ_ENABLE_OK")) return false;
         if (!KernelConsole.WriteHostControl("BOOT_STAGE_SESSION")) return false;
         return global::KathInu.${this.namespace(configuration.name)}.Kernel.Kernel.Start();
     }
