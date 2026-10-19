@@ -1,3 +1,12 @@
+## 0.1.136 mirrored FAT recovery for preserved /User state
+
+- [x] Retry `/User` preservation through the second FAT32 mirror when the primary FAT contains an invalid cluster chain.
+- [x] Clean up any partially extracted user tree before retrying through the mirror so preservation is deterministic.
+- [x] Accept a legacy directory cluster whose FAT entry is zero only when the cluster contents prove the directory is empty (`.` / `..` followed by the end marker, with no deleted or live entries).
+- [x] Continue refusing to rebuild when neither FAT copy can safely reconstruct non-empty user state.
+- [x] Preserve all 0.1.135 FAT32 discovery, 0.1.133 VFAT/logical-path, 0.1.132 drive-management and cursor-editing fixes.
+- [x] Preserve the authoritative root TODO.md and Kath/TODO.md byte-identical mirror.
+
 ## 0.1.135 legacy FAT32 volume discovery compatibility
 
 - [x] Stop requiring the optional FAT type-label text field to literally contain `FAT32` when validating an existing image; validate the real FAT32 BPB geometry instead.
