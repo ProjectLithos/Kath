@@ -505,19 +505,26 @@ export abstract class InuProjectGenerationSupport {
             // chooses a partition/format policy with EnsureGptPartitions/RepartitionGpt/FormatFat32.
             String drivePath = "/Drives/Drive" + additionalDriveOrdinal.ToString();
             additionalDriveOrdinal++;
-            if (!FileSystem.EnsureDirectory(drivePath))
-            {
-                KernelConsole.WriteHostControl("OS_POLICY_DRIVE_DIRECTORY_FAIL");
-                return false;
-            }
 
-            // Mount only filesystems that already exist on this additional physical drive.
+            // A blank physical drive has no filesystem namespace yet. DRIVES/PARTITION/FORMAT
+            // manage it by physical ordinal; create /Drives/DriveN lazily only when a real
+            // existing filesystem is about to be mounted beneath it.
+            Boolean driveDirectoryReady = false;
             UInt32 volumeCount = Storage.GetVolumeCount();
             for (UInt32 volumeOrdinal = 0U; volumeOrdinal < volumeCount; volumeOrdinal++)
             {
                 if (!Storage.TryGetVolume(volumeOrdinal, out KernelStorageVolumeHandle volume, out KernelStorageDeviceHandle owner, out KernelPartitionInfo partition)) continue;
                 if (owner.Value != drive.Value) continue;
                 if (!FatFs.TryGetFileSystemType(volume, out KernelFileSystemType fileSystemType)) continue;
+                if (!driveDirectoryReady)
+                {
+                    if (!FileSystem.EnsureDirectory(drivePath))
+                    {
+                        KernelConsole.WriteHostControl("OS_POLICY_DRIVE_DIRECTORY_FAIL");
+                        return false;
+                    }
+                    driveDirectoryReady = true;
+                }
                 String mountPath = drivePath + "/Partition" + (partition.Index + 1U).ToString();
                 if (!FileSystem.Mount(volume, fileSystemType, mountPath))
                 {

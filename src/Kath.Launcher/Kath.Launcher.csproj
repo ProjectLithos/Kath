@@ -8,8 +8,8 @@
     <Nullable>enable</Nullable>
     <AssemblyName>Kath</AssemblyName>
     <RootNamespace>Kath.Launcher</RootNamespace>
-    <Version>0.1.130</Version>
-    <FileVersion>0.1.130.0</FileVersion>
-    <AssemblyVersion>0.1.130.0</AssemblyVersion>
+    <Version>0.1.131</Version>
+    <FileVersion>0.1.131.0</FileVersion>
+    <AssemblyVersion>0.1.131.0</AssemblyVersion>
   </PropertyGroup>
 </Project>

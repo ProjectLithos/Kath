@@ -1,3 +1,12 @@
+## 0.1.131 lazy additional-drive namespace + stock Test OS migration
+
+- [x] Stop requiring `/Drives/DriveN` directories for blank physical drives during OS policy startup; blank drives are managed by DRIVES/PARTITION/FORMAT without a filesystem namespace.
+- [x] Create `/Drives/DriveN` lazily only when an existing filesystem volume is actually about to be mounted beneath that physical drive.
+- [x] Preserve dense additional-drive ordinals while excluding the system disk from `/Drives` and drive-management ordinals.
+- [x] Migrate untouched 0.1.121-0.1.130 generated Test OS storage policy from eager DriveN creation to lazy mounting without overwriting coder-customised storage policy.
+- [x] Keep the system FAT runtime-write issue separate from physical-drive discovery so a blank data disk cannot abort boot merely because no mount directory is required yet.
+- [x] Preserve the authoritative root TODO.md and Kath/TODO.md byte-identical mirror.
+
 ## 0.1.130 asynchronous USB HID input + deterministic key repeat
 
 - [x] Replace blocking USB HID interrupt polling with a continuously armed asynchronous xHCI interrupt-IN path so the Drivers worker never waits up to two seconds for the next keyboard report.
