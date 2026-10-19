@@ -1,3 +1,15 @@
+## 0.1.130 asynchronous USB HID input + deterministic key repeat
+
+- [x] Replace blocking USB HID interrupt polling with a continuously armed asynchronous xHCI interrupt-IN path so the Drivers worker never waits up to two seconds for the next keyboard report.
+- [x] Keep one persistent HID report buffer per discovered device; completed reports are consumed by the ordinary 1 ms input worker and the next interrupt-IN request is armed without blocking.
+- [x] Route asynchronous xHCI transfer-event TRBs to their owning endpoint instead of the controller-wide synchronous transfer completion event, with memory barriers around ISR/worker state publication.
+- [x] Request a 500 ms HID idle report interval so a held/released boot-keyboard state is periodically refreshed even when no key transition occurs.
+- [x] Restore the agreed key-repeat behaviour: 0.5 s initial delay and 40 ms repeat cadence independent of USB transfer latency.
+- [x] Add a 1.5 s stale-report guard so a lost release/report cannot leave one key repeating forever; record whether repeat stopped by release or stale-state protection.
+- [x] Add `K/c/C` asynchronous xHCI/HID breadcrumbs plus `r/R/s` repeat diagnostics and extend Kath's post-interactive legend accordingly.
+- [x] Release any pending asynchronous DMA bounce buffer when an xHCI controller is torn down.
+- [x] Preserve the authoritative root TODO.md and Kath/TODO.md byte-identical mirror.
+
 ## 0.1.129 drive-management bootstrap compile compatibility
 
 - [x] Explicitly alias `Inu.Kernel.Storage.Storage` inside `UserlandRuntimeStartup` so `Storage.*` cannot resolve to the `Inu.Kernel.Storage` namespace.
