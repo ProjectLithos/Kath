@@ -1,3 +1,11 @@
+## 0.1.134 FAT32 existing-image preservation migration
+
+- [x] Detect the existing system FAT32 volume from GPT/MBR metadata instead of assuming LBA 2048.
+- [x] Preserve both current `/User` and legacy `/USERS` state without erasing user files.
+- [x] Migrate preserved legacy `/USERS` content into the current `/User` namespace during rebuild.
+- [x] Keep a raw-FAT fallback for older image layouts while refusing unreadable/corrupt images safely.
+- [x] Update image-builder diagnostics to refer to the current `/User` contract.
+
 ## 0.1.133 non-mutating logical-path boot + consistent VFAT directory lookup
 
 - [x] Stop stock Test OS boot from re-creating image-staged logical folders merely because a logical path mapping exists; logical mapping and physical provisioning are separate policies.
