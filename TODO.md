@@ -1,3 +1,14 @@
+## 0.1.128 unpublished generated-history sanitation for GitHub
+
+- [x] Detect GitHub-forbidden blobs in the unpublished Inu tail and distinguish known generated/private paths from coder-owned source before rewriting anything.
+- [x] Automatically rewrite only commits that are not yet on GitHub when every forbidden blob is under `.toolchain`, `SDK/Artifacts`, `SDK/References`, `Artifacts`, or `Bin`; never rewrite the already-published `origin/main` history.
+- [x] Preserve the original unpublished tail first under a timestamped `refs/inu/publish-backup/...` safety ref so the cleanup remains locally reversible.
+- [x] Strip generated/private paths from the temporary unpublished-history branch with Git index filtering, preserve commit ordering/metadata/topology, and verify the cleaned tail still descends from `origin/main`.
+- [x] Re-scan the cleaned unpublished tail and refuse publication if any >100 MiB blob remains, especially outside known generated paths.
+- [x] Publish the cleaned commit IDs through the existing size-aware/resumable batching path, then move local `main` to the cleaned tip with a mixed reset so ignored toolchains/artifacts can remain on disk rather than being deleted.
+- [x] Retain the safety backup ref after successful publication and report its exact name; do not garbage-collect the original objects automatically.
+- [x] Preserve the authoritative root TODO.md and Kath/TODO.md byte-identical mirror.
+
 ## 0.1.127 oversized-single-commit GitHub object staging
 
 - [x] Detect when one unpublished Inu commit is itself larger than the normal GitHub batch target instead of attempting the entire commit as one multi-gigabyte push.
