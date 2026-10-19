@@ -1,3 +1,22 @@
+## 0.1.127 oversized-single-commit GitHub object staging
+
+- [x] Detect when one unpublished Inu commit is itself larger than the normal GitHub batch target instead of attempting the entire commit as one multi-gigabyte push.
+- [x] Inventory the commit's unpublished Git objects and identify blob type, size and path before any large upload starts.
+- [x] Refuse immediately with exact paths when an individual unpublished blob exceeds GitHub's normal 100 MiB Git file limit; do not silently rewrite existing commit history.
+- [x] Stage acceptable blobs through temporary `inu-publish-stage/...` GitHub refs in approximately 32 MiB raw groups, then advance the real `main` commit after those objects are already present remotely.
+- [x] Verify every temporary staging ref after client-side push errors, retain successful staging refs across interrupted runs, and remove staging refs after `main` reaches local HEAD.
+- [x] Allow `INU_GITHUB_OBJECT_STAGE_MIB` to tune staging groups from 8 to 96 MiB while preserving the existing size-aware commit batching and transient-network retry behaviour.
+- [x] Preserve fast-forward-only `main` publication; temporary object staging does not alter the real Inu commit SHA/history.
+- [x] Preserve the authoritative root TODO.md and Kath/TODO.md byte-identical mirror.
+
+## 0.1.126 PowerShell publisher parser fix
+
+- [x] Fix Inu `Publish-GitHub.ps1` object-sizing diagnostics so `${range}:` is parsed as interpolation plus a literal colon instead of an invalid scoped variable reference.
+- [x] Fix the same latent `$LASTEXITCODE:` interpolation bug in the generated `Build-WorkspaceProjects.ps1` template.
+- [x] Audit every Inu and Kath PowerShell script for unbraced `$name:` interpolation; no unsafe instances remain outside legitimate scoped variables such as `$env:` and `$script:`.
+- [x] Preserve the 0.1.125 size-aware batching, remote-advance verification, and transient-network retry behaviour unchanged.
+- [x] Preserve the authoritative root TODO.md and Kath/TODO.md byte-identical mirror.
+
 ## 0.1.125 size-aware and network-resilient GitHub publishing
 
 - [x] Size Inu publish batches by the actual raw Git object bytes still missing from `origin/main`, not just by commit count.
