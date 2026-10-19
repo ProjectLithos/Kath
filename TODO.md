@@ -1,3 +1,23 @@
+## 0.1.122 ring-3 drive management commands
+
+- [x] Add DRIVES to list only additional data drives with controller kind, capacity, partition count, read-only state and logical name.
+- [x] Add DRIVENAME to assign a validated user-friendly logical name to a data drive.
+- [x] Add PARTITION to create an equal-sized GPT layout on a blank drive and require explicit `--replace --yes` before destructive repartitioning.
+- [x] Add FORMAT to format a selected unmounted data-drive partition as FAT32 with explicit `--yes` confirmation.
+- [x] Keep the boot/system drive outside the user-manageable drive ordinal space so the stock commands cannot partition or format the running system disk.
+- [x] Expose drive-management operations through the existing Get/Set/Event syscall model; no new syscall class or numeric side channel.
+- [x] Add matching MAN help for every new command and let ProjectCreator materialise the canonical command source into existing OS projects only when it is missing.
+- [x] Preserve the authoritative root TODO.md and Kath/TODO.md byte-identical mirror.
+
+## 0.1.121 non-destructive storage discovery + real drive namespace
+- [x] Stop `Inu.ImageBuilder` from pre-creating fake `/Drives/DriveN/Partition1/Partition2` directories before hardware discovery.
+- [x] Keep the system/boot drive mounted only at `/`; `/Drives` now contains only additional physical drives, numbered densely from `Drive0`.
+- [x] Remove the stock Test OS policy that automatically created two GPT/FAT32 partitions on every blank NVMe/AHCI disk; partitioning and formatting are explicit OS-author choices.
+- [x] Preserve and mount existing additional-drive filesystems without destructive repartitioning.
+- [x] Safely reset legacy auto-provisioned Test OS data disks only when the previous image manifest proves the old two-partition policy created them and both FAT32 roots are still empty; never erase a disk containing files.
+- [x] Migrate existing untouched stock Test OS `Kernel.cs` storage policy automatically while preserving coder-modified storage policy byte-for-byte.
+- [x] Keep the authoritative root `TODO.md` mirrored byte-for-byte into `Kath/TODO.md`.
+
 ## 0.1.120 state-aware stale QEMU session cleanup
 - [x] Query the previous accepted QEMU session through its recorded QMP port instead of treating any live PID as an active guest.
 - [x] Automatically stop and clear `Inu.Run.json` when the previous `-no-shutdown` QEMU process is alive but QMP reports a non-running state such as `guest-panicked`.

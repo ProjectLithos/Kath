@@ -445,11 +445,7 @@ export abstract class InuProjectGenerationSupport {
     }
 
     protected kernelStoragePolicy(configuration: InuProjectConfiguration): string {
-        const controllers = configuration.storageControllers.filter(value => value === 'nvme' || value === 'ahci');
         if (configuration.filesystem === 'none') return '';
-
-        const selectedKinds = controllers.map(controller => controller === 'nvme' ? 'KernelStorageDeviceKind.Nvme' : 'KernelStorageDeviceKind.Ahci');
-        const provisionExpression = selectedKinds.length === 0 ? 'false' : selectedKinds.map(kind => `driveKind == ${kind}`).join(' || ');
         return `        if (!KernelConsole.WriteHostControl("OS_POLICY_STORAGE_ENTER")) return false;
         // The bootable block drive is the system drive. All other detected drives remain
         // additional mounted volumes and can never replace the system root implicitly.
@@ -499,47 +495,28 @@ export abstract class InuProjectGenerationSupport {
         if (!KernelConsole.WriteHostControl("OS_POLICY_DRIVES_DIRECTORY_OK")) return false;
 
         UInt32 detectedDriveCount = Storage.GetDriveCount();
+        UInt32 additionalDriveOrdinal = 0U;
         for (UInt32 driveOrdinal = 0U; driveOrdinal < detectedDriveCount; driveOrdinal++)
         {
             if (!Storage.TryGetDrive(driveOrdinal, out KernelStorageDeviceHandle drive, out KernelStorageDeviceKind driveKind, out KernelStorageGeometry geometry)) continue;
+            if (Storage.IsSystemDrive(drive)) continue;
 
-            // New selected writable NVMe/AHCI data disks get the default two-partition layout.
-            // Existing partition tables and filesystems are preserved. RepartitionGpt/FormatFat32
-            // remain explicit destructive choices for the OS author.
-            Boolean createdLayout = false;
-            if (!geometry.ReadOnly && !Storage.IsSystemDrive(drive) && (${provisionExpression}))
-            {
-                if (!Storage.EnsureGptPartitions(drive, 2U, out createdLayout)) continue;
-                if (createdLayout)
-                {
-                    if (Storage.TryGetPartition(drive, 1U, out KernelStorageVolumeHandle newPartition1) && !FatFs.EnsureFat32(newPartition1))
-                    {
-                        KernelConsole.WriteHostControl("OS_POLICY_DATA_PARTITION1_FORMAT_FAIL");
-                        return false;
-                    }
-                    if (Storage.TryGetPartition(drive, 2U, out KernelStorageVolumeHandle newPartition2) && !FatFs.EnsureFat32(newPartition2))
-                    {
-                        KernelConsole.WriteHostControl("OS_POLICY_DATA_PARTITION2_FORMAT_FAIL");
-                        return false;
-                    }
-                }
-            }
-
-            String drivePath = "/Drives/Drive" + driveOrdinal.ToString();
+            // Discovery is non-destructive. Blank disks stay blank until the OS author explicitly
+            // chooses a partition/format policy with EnsureGptPartitions/RepartitionGpt/FormatFat32.
+            String drivePath = "/Drives/Drive" + additionalDriveOrdinal.ToString();
+            additionalDriveOrdinal++;
             if (!FileSystem.EnsureDirectory(drivePath))
             {
                 KernelConsole.WriteHostControl("OS_POLICY_DRIVE_DIRECTORY_FAIL");
                 return false;
             }
 
-            // Mount every recognized filesystem volume belonging to this drive. The system root
-            // volume is already mounted at /, so it is not mounted a second time.
+            // Mount only filesystems that already exist on this additional physical drive.
             UInt32 volumeCount = Storage.GetVolumeCount();
             for (UInt32 volumeOrdinal = 0U; volumeOrdinal < volumeCount; volumeOrdinal++)
             {
                 if (!Storage.TryGetVolume(volumeOrdinal, out KernelStorageVolumeHandle volume, out KernelStorageDeviceHandle owner, out KernelPartitionInfo partition)) continue;
                 if (owner.Value != drive.Value) continue;
-                if (systemMounted && volume.Value == systemRootVolume.Value) continue;
                 if (!FatFs.TryGetFileSystemType(volume, out KernelFileSystemType fileSystemType)) continue;
                 String mountPath = drivePath + "/Partition" + (partition.Index + 1U).ToString();
                 if (!FileSystem.Mount(volume, fileSystemType, mountPath))
