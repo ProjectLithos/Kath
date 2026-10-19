@@ -1,3 +1,15 @@
+## 0.1.132 zero-based drive management + resilient shell cursor editing
+
+- [x] Make FORMAT accept zero-based drive and partition indexes so `format 0 0 fat32 --yes` addresses Partition0 on Drive0 exactly as DRIVES displays it.
+- [x] Convert the external zero-based partition index to the storage layer's one-based GPT partition number only at the kernel storage syscall boundary.
+- [x] Extend DRIVES output with valid zero-based partition-index ranges and update DRIVES/PARTITION/FORMAT/DRIVENAME MAN files with the explicit DRIVES -> PARTITION -> FORMAT -> DRIVENAME workflow.
+- [x] Make FORMAT report a clear "create a partition first" error when DRIVES reports partitions=0 instead of treating zero as an invalid numeric argument.
+- [x] Keep Left/Right/Home/End line editing synchronized with the framebuffer by falling back to a complete editable-tail redraw when a cursor-only update cannot be presented.
+- [x] Add bounded editable-cursor `M/m` diagnostics so a cursor presentation failure is distinguishable from HID/input transport failure.
+- [x] Tighten USB key-repeat stale-report recovery from 1.5 s to 650 ms generally and 550 ms for navigation keys, just above the 500 ms HID idle refresh, so a lost arrow-key release cannot flood the shell editor for seconds.
+- [x] Preserve the 0.5 s initial repeat delay and 40 ms cadence while fresh HID reports continue to prove the key state is live.
+- [x] Preserve the authoritative root TODO.md and Kath/TODO.md byte-identical mirror.
+
 ## 0.1.131 lazy additional-drive namespace + stock Test OS migration
 
 - [x] Stop requiring `/Drives/DriveN` directories for blank physical drives during OS policy startup; blank drives are managed by DRIVES/PARTITION/FORMAT without a filesystem namespace.
