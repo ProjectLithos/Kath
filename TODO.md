@@ -1,3 +1,10 @@
+## 0.1.120 state-aware stale QEMU session cleanup
+- [x] Query the previous accepted QEMU session through its recorded QMP port instead of treating any live PID as an active guest.
+- [x] Automatically stop and clear `Inu.Run.json` when the previous `-no-shutdown` QEMU process is alive but QMP reports a non-running state such as `guest-panicked`.
+- [x] Clear stale metadata when the previous QEMU PID has exited, the manifest is invalid, or the PID has been reused by a different executable.
+- [x] Preserve persistent FAT32 image ownership safety by blocking a new launch only when QMP confirms the previous guest is genuinely `running`.
+- [x] Keep the authoritative root `TODO.md` mirrored byte-for-byte into `Kath/TODO.md`.
+
 ## 0.1.119 NVMe guest-panic fix + reliable GitHub publishing + Kath TODO mirror
 - [x] Keep the current polling NVMe implementation explicitly synchronous; do not request MSI/MSI-X while `WaitCompletion()` still polls completion queues.
 - [x] Remove the invalid NVMe `INTMC` interrupt-mask-clear write that QEMU rejects when MSI-X is enabled.
