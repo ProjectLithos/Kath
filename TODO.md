@@ -1,3 +1,14 @@
+## 0.1.138 verified GPT write transaction + partition-registry recovery
+
+- [x] Verify every protective-MBR, GPT entry-array and primary/backup GPT-header write by reading the data back from the target drive.
+- [x] Write backup GPT structures before primary structures so a partial failure is less likely to destroy the only usable table.
+- [x] Treat explicit NVMe Flush as advisory after successful synchronous write completion plus byte-for-byte read-back verification.
+- [x] Make `RefreshPartitions` transactional and clear any partially discovered volume records on failure.
+- [x] Fall back to the exact just-written/verified GPT partition geometry when generic rediscovery cannot complete, so `FORMAT` can immediately use zero-based Partition indexes.
+- [x] Refresh existing GPT layouts before reporting `PARTITION` success, preventing stale raw-volume registry state.
+- [x] Preserve all 0.1.137 VFS/input fixes and previous storage/image compatibility work.
+- [x] Preserve the authoritative root TODO.md and Kath/TODO.md byte-identical mirror.
+
 ## 0.1.137 authoritative directory enumeration + asynchronous HID lost-interrupt recovery
 
 - [x] Make mounted VFS directory enumeration authoritative for ordinary `Directory`/`dir` calls; use the background path index only when no mounted VFS directory is available.
