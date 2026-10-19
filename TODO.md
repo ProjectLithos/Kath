@@ -1,3 +1,10 @@
+## 0.1.129 drive-management bootstrap compile compatibility
+
+- [x] Explicitly alias `Inu.Kernel.Storage.Storage` inside `UserlandRuntimeStartup` so `Storage.*` cannot resolve to the `Inu.Kernel.Storage` namespace.
+- [x] Keep `storage.drive.count`, `storage.drive.info`, `storage.drive.name`, `storage.partition.gpt`, and `storage.format.fat32` as bootstrap-local Get/Set message strings rather than requiring newer convenience constants from coder-owned `KernelSystemCallMessages`.
+- [x] Preserve the existing three-syscall Get/Set/Event contract and all DRIVES/DRIVENAME/PARTITION/FORMAT behaviour.
+- [x] Preserve the authoritative root TODO.md and Kath/TODO.md byte-identical mirror.
+
 ## 0.1.128 unpublished generated-history sanitation for GitHub
 
 - [x] Detect GitHub-forbidden blobs in the unpublished Inu tail and distinguish known generated/private paths from coder-owned source before rewriting anything.
