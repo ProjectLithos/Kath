@@ -1,3 +1,12 @@
+## 0.1.135 legacy FAT32 volume discovery compatibility
+
+- [x] Stop requiring the optional FAT type-label text field to literally contain `FAT32` when validating an existing image; validate the real FAT32 BPB geometry instead.
+- [x] Add a bounded sector-aligned fallback scan for historical Inu images whose FAT32 volume is not discoverable through current GPT/MBR/raw candidate locations.
+- [x] Require structurally valid FAT32 geometry, FAT capacity, root cluster, total-sector bounds and FAT32-sized cluster counts before accepting a scanned candidate.
+- [x] Preserve current `/User` and legacy `/USERS` trees only after a candidate filesystem passes those structural checks.
+- [x] Preserve all 0.1.134 image-migration, 0.1.133 VFAT/logical-path, 0.1.132 drive-management and cursor-editing fixes.
+- [x] Preserve the authoritative root TODO.md and Kath/TODO.md byte-identical mirror.
+
 ## 0.1.134 FAT32 existing-image preservation migration
 
 - [x] Detect the existing system FAT32 volume from GPT/MBR metadata instead of assuming LBA 2048.
