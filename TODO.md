@@ -1,3 +1,12 @@
+## 0.1.133 non-mutating logical-path boot + consistent VFAT directory lookup
+
+- [x] Stop stock Test OS boot from re-creating image-staged logical folders merely because a logical path mapping exists; logical mapping and physical provisioning are separate policies.
+- [x] Migrate untouched diagnostic Test OS Kernel.cs files from the eager logical-directory EnsureDirectory block without overwriting coder-customised storage policy.
+- [x] Make FileSystem.EnsureDirectory normalise and convert a path once, then use the same ASCII/VFAT lookup path for both existing-directory detection and creation.
+- [x] Avoid the managed-string lookup -> ASCII create split that could miss an existing VFAT long-name directory such as /System/Applications and then attempt a duplicate creation.
+- [x] Preserve all 0.1.132 zero-based drive-management and shell cursor-editing fixes unchanged.
+- [x] Preserve the authoritative root TODO.md and Kath/TODO.md byte-identical mirror.
+
 ## 0.1.132 zero-based drive management + resilient shell cursor editing
 
 - [x] Make FORMAT accept zero-based drive and partition indexes so `format 0 0 fat32 --yes` addresses Partition0 on Drive0 exactly as DRIVES displays it.
