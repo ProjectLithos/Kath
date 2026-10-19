@@ -100,6 +100,24 @@ function Invoke-GitLiveResult([string[]]$a){
         return [pscustomobject]@{ ExitCode=[int]$process.ExitCode; TimedOut=$false }
     } finally { $process.Dispose() }
 }
+function Wait-GitHubConnectivity([string]$Operation){
+    $delays=@(5,15,30,60,120,120)
+    for($attempt=1; $attempt -le ($delays.Count + 1); $attempt++){
+        $probe=Invoke-GitResult -a @('ls-remote','--heads','origin') -TimeoutSeconds 60
+        if($probe.ExitCode -eq 0){
+            if($attempt -gt 1){ Write-Host "[ OK ] GitHub connectivity recovered for $Operation." }
+            return $true
+        }
+        if($attempt -gt $delays.Count){
+            foreach($line in $probe.Lines){ Write-Host $line }
+            return $false
+        }
+        $delay=$delays[$attempt-1]
+        Write-Host "[WARN] GitHub is currently unreachable while $Operation (probe exit $($probe.ExitCode)); retrying in $delay second(s)."
+        Start-Sleep -Seconds $delay
+    }
+    return $false
+}
 function Git([string[]]$a, [int]$TimeoutSeconds=30){
     $result=Invoke-GitResult -a $a -TimeoutSeconds $TimeoutSeconds
     foreach($line in $result.Lines){ Write-Host $line }
@@ -191,8 +209,17 @@ Write-Host "[INFO] Pushing $RepositoryName to GitHub (no fixed wall-clock timeou
 # Do not terminate it merely because compression exceeds 90 seconds. The git http
 # low-speed guard still fails a genuinely stalled HTTPS transfer after five minutes
 # below one byte/second, while authentication remains explicitly non-interactive.
-$push=Invoke-GitLiveResult -a @('-c','http.lowSpeedLimit=1','-c','http.lowSpeedTime=300','push','-u','origin','HEAD:main')
+$pushArguments=@('-c','http.version=HTTP/1.1','-c','http.lowSpeedLimit=1','-c','http.lowSpeedTime=300','push','-u','origin','HEAD:main')
+$push=Invoke-GitLiveResult -a $pushArguments
 if($push.ExitCode -ne 0){
-    Fail "The build succeeded, but $RepositoryName could not be pushed to $RepositoryUrl (exit $($push.ExitCode)). Check GitHub authentication, connectivity, or remote history."
+    Write-Host "[WARN] $RepositoryName push returned exit $($push.ExitCode). Checking GitHub connectivity before classifying the failure."
+    if(-not (Wait-GitHubConnectivity -Operation "retrying the $RepositoryName push")){
+        Fail "The build succeeded, but GitHub remained unreachable after repeated retries. The local $RepositoryName commit is safe; rerun publication when DNS/network access returns."
+    }
+    Write-Host "[INFO] GitHub connectivity is available again; retrying the same $RepositoryName push without changing history."
+    $push=Invoke-GitLiveResult -a $pushArguments
+    if($push.ExitCode -ne 0){
+        Fail "The build succeeded and GitHub is reachable, but $RepositoryName still could not be pushed to $RepositoryUrl (exit $($push.ExitCode)). Check remote history or authentication."
+    }
 }
 Write-Host "[ OK ] $RepositoryName $Version published to GitHub."

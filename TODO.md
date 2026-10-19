@@ -1,3 +1,14 @@
+## 0.1.125 size-aware and network-resilient GitHub publishing
+
+- [x] Size Inu publish batches by the actual raw Git object bytes still missing from `origin/main`, not just by commit count.
+- [x] Default Inu backlog batches to approximately 192 MiB of unpublished raw objects (and no more than 25 commits), with `INU_GITHUB_PUSH_MAX_MIB` and `INU_GITHUB_PUSH_BATCH_SIZE` overrides.
+- [x] After any failed Inu push, verify whether GitHub advanced to the target commit before retrying or shrinking the batch, because a client-side HTTP error can occur after the remote accepted the ref update.
+- [x] Treat DNS/network outages separately from batch-size/repository failures; do not shrink a batch because `github.com` temporarily cannot be resolved.
+- [x] Retry GitHub connectivity with bounded backoff for both Inu and Kath and then retry the same publish operation once connectivity returns.
+- [x] Use HTTP/1.1 for Git pushes while retaining the five-minute low-speed transport guard and non-interactive authentication.
+- [x] Preserve fast-forward-only publication, final remote-HEAD verification, and every successfully published earlier batch.
+- [x] Preserve the authoritative root TODO.md and Kath/TODO.md byte-identical mirror.
+
 ## 0.1.124 incremental GitHub backlog publishing
 
 - [x] Discover the current GitHub `origin/main` commit before publishing and verify it is an ancestor of local HEAD; never force-push or rewrite independent remote history.
