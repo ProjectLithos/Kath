@@ -1,3 +1,14 @@
+## 0.1.137 authoritative directory enumeration + asynchronous HID lost-interrupt recovery
+
+- [x] Make mounted VFS directory enumeration authoritative for ordinary `Directory`/`dir` calls; use the background path index only when no mounted VFS directory is available.
+- [x] Stop exposing partially populated path-index snapshots as complete directory contents, so `/System/Help`, `/System/Commands`, `/INU/System` and other multi-entry directories show every staged entry.
+- [x] Preserve the path index as a background lookup/command-discovery accelerator rather than making it the filesystem source of truth.
+- [x] Add a bounded asynchronous xHCI interrupt-IN watchdog: after eight pending HID service cycles, inspect/drain the event ring and acknowledge stale EINT/IMAN latches without turning normal keyboard input back into polling.
+- [x] Consume a recovered async completion immediately and re-arm the next HID transfer on the following service pass, preventing one missed MSI/MSI-X transition from leaving keyboard input permanently stuck.
+- [x] Add bounded `k` async-HID watchdog breadcrumbs to QEMU/Kath diagnostics.
+- [x] Preserve all 0.1.136 FAT recovery, 0.1.135 image discovery, 0.1.133 VFAT/logical-path, and 0.1.132 drive/editor fixes.
+- [x] Preserve the authoritative root TODO.md and Kath/TODO.md byte-identical mirror.
+
 ## 0.1.136 mirrored FAT recovery for preserved /User state
 
 - [x] Retry `/User` preservation through the second FAT32 mirror when the primary FAT contains an invalid cluster chain.
