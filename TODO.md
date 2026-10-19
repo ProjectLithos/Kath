@@ -1,3 +1,20 @@
+## 0.1.124 incremental GitHub backlog publishing
+
+- [x] Discover the current GitHub `origin/main` commit before publishing and verify it is an ancestor of local HEAD; never force-push or rewrite independent remote history.
+- [x] Push only commits that GitHub is missing, in ordered fast-forward batches of 25 commits by default, so a multi-gigabyte Inu backlog is not packed into one push.
+- [x] Automatically halve a failed batch and retry the same unpublished range until it succeeds or a single commit is isolated as the failing unit.
+- [x] Preserve every successful earlier batch when a later batch fails, and report exact published/missing commit progress.
+- [x] Allow `INU_GITHUB_PUSH_BATCH_SIZE` to override the default batch size from 1 to 1000 commits without changing source.
+- [x] Keep the five-minute Git HTTPS zero-progress guard, non-interactive authentication, final HEAD verification and upstream tracking.
+- [x] Preserve the authoritative root TODO.md and Kath/TODO.md byte-identical mirror.
+
+## 0.1.123 ProjectCreator drive-policy migration compile fix
+
+- [x] Fix the unescaped `/Drives/Drive` string literal in `RepairStockTestOsNonDestructiveStoragePolicy` that caused CS1003 at `Program.cs:627`.
+- [x] Audit the complete 0.1.122 ProjectCreator drive-management/materialisation block for adjacent malformed string literals.
+- [x] Preserve all DRIVES/DRIVENAME/PARTITION/FORMAT commands and matching help unchanged.
+- [x] Preserve the authoritative root TODO.md and Kath/TODO.md byte-identical mirror.
+
 ## 0.1.122 ring-3 drive management commands
 
 - [x] Add DRIVES to list only additional data drives with controller kind, capacity, partition count, read-only state and logical name.
