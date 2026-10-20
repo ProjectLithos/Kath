@@ -1,3 +1,12 @@
+## 0.1.139 deferred path-index activation after interactive mount
+
+- [x] Decouple `KernelVfs.Mount` completion from background path-index scanning so a mounted filesystem is published synchronously without waking the Storage-role scanner inside the mount call.
+- [x] Record mounted roots immediately, but defer their initial directory scans until the interactive shell has published `INTERACTIVE_READY`.
+- [x] Keep the mounted VFS authoritative; the path index remains only a best-effort accelerator and continues to track later create/delete/rename operations.
+- [x] Preserve stale PID-reuse cleanup as non-fatal launcher housekeeping; the actual 0.1.138 failure was the system mount never returning before the acceptance window expired.
+- [x] Preserve all 0.1.138 GPT verification/transaction fixes and previous VFS/input/image compatibility work.
+- [x] Preserve the authoritative root TODO.md and Kath/TODO.md byte-identical mirror.
+
 ## 0.1.138 verified GPT write transaction + partition-registry recovery
 
 - [x] Verify every protective-MBR, GPT entry-array and primary/backup GPT-header write by reading the data back from the target drive.
